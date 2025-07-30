@@ -29,7 +29,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
     const course = await prisma.course.findUnique({
       where: { id: courseId },
       include: {
-        teacher: true,
+        teachers: {
+          include: {
+            teacher: {
+              select: {
+                id: true,
+                userId: true
+              }
+            }
+          }
+        },
         groups: {
           include: {
             group: {
@@ -62,9 +71,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } });
-    if (user.role !== "ADMIN" && !(user.role === "TEACHER" && teacher && course.teacherId === teacher.id)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Vérifier les permissions pour le nouveau système multi-professeurs
+    if (user.role === "ADMIN" || user.role === "BUREAU") {
+      // ADMIN et BUREAU ont accès à tous les cours
+    } else if (user.role === "TEACHER") {
+      // TEACHER doit être assigné au cours
+      const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } });
+      if (!teacher) {
+        return NextResponse.json({ error: "Teacher profile not found" }, { status: 403 });
+      }
+      
+      const isAssignedToThisCourse = course.teachers.some(ct => ct.teacherId === teacher.id);
+      if (!isAssignedToThisCourse) {
+        return NextResponse.json({ error: "Not assigned to this course" }, { status: 403 });
+      }
+    } else {
+      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
     // Get all licensees from course groups (removing duplicates)
@@ -125,31 +147,38 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
       });
     }
 
-    // Construire la liste de présences avec les licenciés manquants
+    // Construire la structure de données attendue par le frontend
     const attendanceMap = session_obj.attendance.reduce((acc: any, att: any) => {
       acc[att.licenseeId] = att;
       return acc;
     }, {});
 
-    const attendanceList = uniqueLicensees.map((licensee: any) => {
+    // Convertir les licenciés en students avec la structure attendue
+    const students = uniqueLicensees.map((licensee: any) => ({
+      id: licensee.id,
+      firstName: licensee.firstName,
+      lastName: licensee.lastName
+    }));
+
+    // Créer le map d'attendance avec la structure attendue
+    const attendance = uniqueLicensees.reduce((acc: any, licensee: any) => {
       const existing = attendanceMap[licensee.id];
-      return {
-        sessionId: session_obj.id,
-        licenseeId: licensee.id,
-        licensee: licensee,
+      acc[licensee.id] = {
+        student: {
+          id: licensee.id,
+          firstName: licensee.firstName,
+          lastName: licensee.lastName
+        },
         status: existing?.status || null,
-        remark: existing?.remark || "",
-        updatedAt: existing?.updatedAt || null
+        remark: existing?.remark || ""
       };
-    });
+      return acc;
+    }, {});
 
     return NextResponse.json({
-      session: {
-        id: session_obj.id,
-        date: session_obj.date,
-        locked: session_obj.locked
-      },
-      attendance: attendanceList
+      sessionId: session_obj?.id || null,
+      students: students,
+      attendance: attendance
     });
 
   } catch (error) {
@@ -158,7 +187,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
   }
 }
 
-// POST - Mettre à jour les présences
+// POST - Enregistrer les présences pour une session complète
 export async function POST(req: NextRequest, { params }: { params: Promise<{ courseId: string }> }) {
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) {
@@ -173,63 +202,120 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cou
 
   try {
     const body = await req.json();
-    const { sessionId, licenseeId, status, remark } = body;
+    const { date, attendance, remarks } = body;
 
-    if (!sessionId || !licenseeId) {
-      return NextResponse.json({ error: "Missing sessionId or licenseeId" }, { status: 400 });
+    if (!date) {
+      return NextResponse.json({ error: "Missing date" }, { status: 400 });
     }
 
-    // Vérifier l'accès
-    const course = await prisma.course.findUnique({ where: { id: courseId } });
+    // Vérifier l'accès au cours
+    const course = await prisma.course.findUnique({ 
+      where: { id: courseId },
+      include: {
+        teachers: {
+          include: {
+            teacher: {
+              select: {
+                id: true,
+                userId: true
+              }
+            }
+          }
+        }
+      }
+    });
     const user = await prisma.user.findUnique({ where: { id: session.user.id } });
     
     if (!course || !user) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } });
-    if (user.role !== "ADMIN" && !(user.role === "TEACHER" && teacher && course.teacherId === teacher.id)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Vérifier les permissions
+    if (user.role === "ADMIN" || user.role === "BUREAU") {
+      // ADMIN et BUREAU ont accès à tous les cours
+    } else if (user.role === "TEACHER") {
+      // TEACHER doit être assigné au cours
+      const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } });
+      if (!teacher) {
+        return NextResponse.json({ error: "Teacher profile not found" }, { status: 403 });
+      }
+      
+      const isAssignedToThisCourse = course.teachers.some(ct => ct.teacherId === teacher.id);
+      if (!isAssignedToThisCourse) {
+        return NextResponse.json({ error: "Not assigned to this course" }, { status: 403 });
+      }
+    } else {
+      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
-    // Vérifier si la session est verrouillée
-    const courseSession = await prisma.courseSession.findUnique({ where: { id: sessionId } });
-    if (courseSession?.locked) {
-      return NextResponse.json({ error: "Session is locked" }, { status: 400 });
-    }
+    // Parse date
+    const sessionDate = new Date(date);
+    sessionDate.setHours(0, 0, 0, 0);
 
-    // Mettre à jour ou créer l'attendance
-    const attendance = await prisma.attendance.upsert({
+    // Récupérer ou créer la session du cours
+    let courseSession = await prisma.courseSession.findUnique({
       where: {
-        sessionId_licenseeId: {
-          sessionId: sessionId,
-          licenseeId: licenseeId
-        }
-      },
-      update: {
-        status: status === null ? null : status as AttendanceStatus,
-        remark: remark || null,
-        updatedBy: session.user.id
-      },
-      create: {
-        sessionId: sessionId,
-        licenseeId: licenseeId,
-        status: status === null ? null : status as AttendanceStatus,
-        remark: remark || null,
-        updatedBy: session.user.id
-      },
-      include: {
-        licensee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true
-          }
+        courseId_date: {
+          courseId: courseId,
+          date: sessionDate
         }
       }
     });
 
-    return NextResponse.json(attendance);
+    if (!courseSession) {
+      // Créer une nouvelle session si elle n'existe pas
+      courseSession = await prisma.courseSession.create({
+        data: {
+          courseId: courseId,
+          date: sessionDate
+        }
+      });
+    }
+
+    // Vérifier si la session est verrouillée
+    if (courseSession.locked) {
+      return NextResponse.json({ error: "Session is locked" }, { status: 400 });
+    }
+
+    // Mettre à jour les présences pour tous les étudiants
+    const attendanceUpdates = [];
+    
+    for (const [studentIdStr, status] of Object.entries(attendance || {})) {
+      const studentId = parseInt(studentIdStr);
+      const remark = remarks?.[studentId] || "";
+      
+      attendanceUpdates.push(
+        prisma.attendance.upsert({
+          where: {
+            sessionId_licenseeId: {
+              sessionId: courseSession.id,
+              licenseeId: studentId
+            }
+          },
+          update: {
+            status: status === null ? null : status as AttendanceStatus,
+            remark: remark || null,
+            updatedBy: session.user.id
+          },
+          create: {
+            sessionId: courseSession.id,
+            licenseeId: studentId,
+            status: status === null ? null : status as AttendanceStatus,
+            remark: remark || null,
+            updatedBy: session.user.id
+          }
+        })
+      );
+    }
+
+    // Exécuter toutes les mises à jour en parallèle
+    await Promise.all(attendanceUpdates);
+
+    return NextResponse.json({ 
+      success: true, 
+      message: "Attendance saved successfully",
+      sessionId: courseSession.id 
+    });
 
   } catch (error) {
     console.error("Error in POST attendance:", error);

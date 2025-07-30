@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { withTeacherAuth } from "@/components/withAuth";
+import { withAuth } from "@/components/withAuth";
 
 interface Student {
   id: number;
@@ -443,4 +443,4 @@ function CourseDetailPage() {
   );
 }
 
-export default withTeacherAuth(CourseDetailPage);
+export default withAuth(CourseDetailPage, { requiredRoles: ["BUREAU", "TEACHER"] });

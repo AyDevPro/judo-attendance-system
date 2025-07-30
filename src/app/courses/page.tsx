@@ -34,7 +34,7 @@ type Course = {
   name: string;
   teachers: Teacher[];
   groups: Group[];
-  timetable: Timetable;
+  timetable: Timetable[];
   _count: {
     sessions: number;
   };
@@ -74,7 +74,8 @@ function CoursesPage() {
     return days[weekday] || 'Inconnu';
   };
 
-  const formatTime = (time: string) => {
+  const formatTime = (time: string | null | undefined) => {
+    if (!time) return '--:--';
     return time.slice(0, 5); // HH:MM
   };
 
@@ -159,7 +160,10 @@ function CoursesPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <span className="text-sm">
-                      {getWeekdayName(course.timetable.weekday)} {formatTime(course.timetable.startsAt)} - {formatTime(course.timetable.endsAt)}
+                      {course.timetable && course.timetable.length > 0
+                        ? `${getWeekdayName(course.timetable[0].weekday)} ${formatTime(course.timetable[0].startsAt)} - ${formatTime(course.timetable[0].endsAt)}`
+                        : 'Horaires non définis'
+                      }
                     </span>
                   </div>
                 </div>

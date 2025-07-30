@@ -48,7 +48,8 @@ export async function GET(req: NextRequest) {
               weekday: true,
               startsAt: true,
               endsAt: true
-            }
+            },
+            take: 1
           },
           _count: {
             select: {
@@ -112,7 +113,8 @@ export async function GET(req: NextRequest) {
               weekday: true,
               startsAt: true,
               endsAt: true
-            }
+            },
+            take: 1
           },
           _count: {
             select: {
