@@ -152,7 +152,8 @@ export interface PagePermissions {
 export const PAGE_PERMISSIONS: Record<string, PagePermissions> = {
   "/": { requireAuth: false },
   "/sign-in": { requireAuth: false, redirectIfAuthenticated: true },
-  "/sign-up": { requireAuth: false, redirectIfAuthenticated: true },
+  "/sign-up": { requireAuth: false },
+  "/register": { requireAuth: false },
   "/dashboard": { requireAuth: true },
   "/profile": { requireAuth: true },
   "/courses": { requireAuth: true, allowedRoles: ["ADMIN", "TEACHER"] },

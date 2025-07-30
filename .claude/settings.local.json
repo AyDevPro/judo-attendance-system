@@ -9,7 +9,12 @@
       "Bash(git checkout:*)",
       "Bash(npx prisma generate:*)",
       "Bash(rm:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "WebFetch(domain:www.better-auth.com)",
+      "Bash(cd:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker exec:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

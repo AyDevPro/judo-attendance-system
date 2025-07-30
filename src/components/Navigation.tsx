@@ -1,14 +1,44 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { signOut } from "@/lib/auth-client";
-import { type AuthUser, hasRole, useAuth } from "@/lib/auth-utils";
+import { signOut, useSession } from "@/lib/auth-client";
+import { type AuthUser, hasRole } from "@/lib/auth-utils";
 
 export default function Navigation() {
-  const { user, isAuthenticated, isPending } = useAuth();
+  const { data: session, isPending } = useSession();
+  const baseUser = session?.user;
+  const isAuthenticated = !!session;
+  const [fullUser, setFullUser] = useState<AuthUser | null>(null);
   const router = useRouter();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Récupérer les données complètes de l'utilisateur
+  useEffect(() => {
+    if (isAuthenticated && baseUser && !fullUser) {
+      fetch(`/api/user/me`)
+        .then(res => res.json())
+        .then(userData => {
+          setFullUser({
+            id: userData.id,
+            email: userData.email,
+            name: userData.name || baseUser.name,
+            role: userData.role,
+            blocked: userData.blocked
+          });
+        })
+        .catch(error => {
+          console.error('Error fetching user data:', error);
+          setFullUser({
+            id: baseUser.id,
+            email: baseUser.email,
+            name: baseUser.name,
+            role: undefined,
+            blocked: false
+          });
+        });
+    }
+  }, [isAuthenticated, baseUser, fullUser]);
 
   // Fermer le dropdown quand on clique ailleurs
   useEffect(() => {
@@ -53,9 +83,9 @@ export default function Navigation() {
         className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none"
       >
         <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">
-          {user?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "U"}
+          {fullUser?.name?.charAt(0)?.toUpperCase() || fullUser?.email?.charAt(0)?.toUpperCase() || "U"}
         </div>
-        <span className="hidden md:block font-medium">{user?.name || user?.email}</span>
+        <span className="hidden md:block font-medium">{fullUser?.name || fullUser?.email}</span>
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -65,12 +95,12 @@ export default function Navigation() {
         <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
           <div className="py-1">
             <div className="px-4 py-2 text-sm text-gray-500 border-b">
-              <div className="font-medium">{user?.name || "Utilisateur"}</div>
-              <div className="text-xs">{user?.email}</div>
+              <div className="font-medium">{fullUser?.name || "Utilisateur"}</div>
+              <div className="text-xs">{fullUser?.email}</div>
               <div className="text-xs text-blue-600 font-medium">
-                {user?.role === "ADMIN" ? "Administrateur" : 
-                 user?.role === "TEACHER" ? "Enseignant" :
-                 user?.role === "BUREAU" ? "Bureau" : "Utilisateur"}
+                {fullUser?.role === "ADMIN" ? "Administrateur" : 
+                 fullUser?.role === "TEACHER" ? "Enseignant" :
+                 fullUser?.role === "BUREAU" ? "Bureau" : "Utilisateur"}
               </div>
             </div>
             
@@ -98,8 +128,8 @@ export default function Navigation() {
     const links = [];
 
     // Lien vers les cours (pour ADMIN et TEACHER)
-    if (hasRole(user, ["ADMIN", "TEACHER"])) {
-      const linkText = user?.role === "ADMIN" ? "Tous les cours" : "Mes cours";
+    if (hasRole(fullUser, ["ADMIN", "TEACHER"])) {
+      const linkText = fullUser?.role === "ADMIN" ? "Tous les cours" : "Mes cours";
       links.push(
         <a 
           key="courses"
@@ -112,7 +142,7 @@ export default function Navigation() {
     }
 
     // Liens spécifiques pour ADMIN
-    if (hasRole(user, "ADMIN")) {
+    if (hasRole(fullUser, "ADMIN")) {
       links.push(
         <a 
           key="manage-courses"
@@ -134,7 +164,7 @@ export default function Navigation() {
     }
 
     // Tableaux de bord pour BUREAU
-    if (hasRole(user, "BUREAU")) {
+    if (hasRole(fullUser, "BUREAU")) {
       links.push(
         <a 
           key="dashboard-bureau"
