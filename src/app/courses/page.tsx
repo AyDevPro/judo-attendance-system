@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { withTeacherAuth } from "@/components/withAuth";
+import { withAuth } from "@/components/withAuth";
+import { useAuth } from "@/lib/auth-utils";
 import Link from "next/link";
 
 type Teacher = {
@@ -40,9 +41,12 @@ type Course = {
 };
 
 function CoursesPage() {
+  const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  const isBureau = user?.role === "BUREAU";
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -118,7 +122,7 @@ function CoursesPage() {
             Mes Cours
           </h1>
           <p className="text-gray-600 text-lg">
-            Gérez vos cours et les présences des étudiants
+            {isBureau ? "Supervisez tous les cours du système et accédez aux présences" : "Gérez vos cours et les présences des étudiants"}
           </p>
         </div>
 
@@ -131,10 +135,13 @@ function CoursesPage() {
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              Aucun cours assigné
+              {isBureau ? "Aucun cours dans le système" : "Aucun cours assigné"}
             </h3>
             <p className="text-gray-500">
-              Vous n'avez actuellement aucun cours assigné. Contactez un administrateur pour vous assigner des cours.
+              {isBureau 
+                ? "Il n'y a actuellement aucun cours créé dans le système. Utilisez 'Gestion des cours' pour créer des cours."
+                : "Vous n'avez actuellement aucun cours assigné. Contactez un administrateur pour vous assigner des cours."
+              }
             </p>
           </div>
         ) : (
@@ -226,4 +233,4 @@ function CoursesPage() {
   );
 }
 
-export default withTeacherAuth(CoursesPage);
+export default withAuth(CoursesPage, { requiredRoles: ["BUREAU", "TEACHER"] });

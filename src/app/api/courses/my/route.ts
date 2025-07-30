@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "User not found or blocked" }, { status: 404 });
     }
 
-    if (fullUser.role === "ADMIN") {
-      // Admin peut voir tous les cours
+    if (fullUser.role === "BUREAU") {
+      // Bureau peut voir tous les cours (comme admin avant)
       const courses = await prisma.course.findMany({
         include: {
           teachers: {
