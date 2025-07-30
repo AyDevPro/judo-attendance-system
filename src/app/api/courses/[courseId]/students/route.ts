@@ -22,9 +22,41 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   
-  const students = await prisma.student.findMany({
-    where: { classId: course.classId },
-    select: { id: true, firstName: true, lastName: true, externalId: true }
+  // Get licensees assigned to the course's groups
+  const courseWithGroups = await prisma.course.findUnique({
+    where: { id: parseInt(courseId) },
+    include: {
+      groups: {
+        include: {
+          group: {
+            include: {
+              licensees: {
+                include: {
+                  licensee: {
+                    select: { id: true, firstName: true, lastName: true, externalId: true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   });
-  return NextResponse.json(students);
+
+  if (!courseWithGroups) {
+    return NextResponse.json({ error: "Course not found" }, { status: 404 });
+  }
+
+  // Extract unique licensees from all groups
+  const licensees = courseWithGroups.groups.flatMap(cg => 
+    cg.group.licensees.map(lg => lg.licensee)
+  );
+
+  // Remove duplicates
+  const uniqueLicensees = licensees.filter((licensee, index, self) =>
+    index === self.findIndex(l => l.id === licensee.id)
+  );
+
+  return NextResponse.json(uniqueLicensees);
 }

@@ -26,17 +26,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
 
   try {
     // Vérifier l'accès au cours
-    const course = await prisma.course.findUnique({ 
+    const course = await prisma.course.findUnique({
       where: { id: courseId },
       include: {
         teacher: true,
-        class: {
+        groups: {
           include: {
-            students: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true
+            group: {
+              include: {
+                licensees: {
+                  include: {
+                    licensee: {
+                      select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -49,33 +57,40 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
     }
 
     // Vérifier les permissions
-    const fullUser = await prisma.user.findUnique({ where: { id: session.user.id } });
-    if (!fullUser) {
+    const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+    if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    if (fullUser.role !== "ADMIN" && fullUser.role !== "TEACHER") {
+    const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } });
+    if (user.role !== "ADMIN" && !(user.role === "TEACHER" && teacher && course.teacherId === teacher.id)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    if (fullUser.role === "TEACHER") {
-      const teacher = await prisma.teacher.findUnique({ where: { userId: session.user.id } });
-      if (!teacher || teacher.id !== course.teacherId) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
-    }
+    // Get all licensees from course groups (removing duplicates)
+    const allLicensees = course.groups.flatMap(cg =>
+      cg.group.licensees.map(lg => lg.licensee)
+    );
+    const uniqueLicensees = allLicensees.filter((licensee, index, self) =>
+      index === self.findIndex(l => l.id === licensee.id)
+    );
 
-    const sessionDate = new Date(dateStr);
-    
-    // Récupérer la session de cours s'elle existe
-    const courseSession = await prisma.courseSession.findUnique({
+    // Parse date
+    const date = new Date(dateStr);
+    date.setHours(0, 0, 0, 0);
+
+    // Récupérer ou créer la session du cours
+    let session_obj = await prisma.courseSession.findUnique({
       where: {
-        courseId_date: { courseId, date: sessionDate }
+        courseId_date: {
+          courseId: courseId,
+          date: date
+        }
       },
       include: {
         attendance: {
           include: {
-            student: {
+            licensee: {
               select: {
                 id: true,
                 firstName: true,
@@ -87,129 +102,137 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
       }
     });
 
-    // Préparer la réponse avec tous les étudiants
-    const attendanceData = course.class.students.reduce((acc, student) => {
-      const attendance = courseSession?.attendance.find(a => a.studentId === student.id);
-      acc[student.id] = {
-        student: {
-          id: student.id,
-          firstName: student.firstName,
-          lastName: student.lastName
+    if (!session_obj) {
+      // Créer une nouvelle session
+      session_obj = await prisma.courseSession.create({
+        data: {
+          courseId: courseId,
+          date: date
         },
-        status: attendance?.status || null,
-        remark: attendance?.remark || null
-      };
+        include: {
+          attendance: {
+            include: {
+              licensee: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Construire la liste de présences avec les licenciés manquants
+    const attendanceMap = session_obj.attendance.reduce((acc: any, att: any) => {
+      acc[att.licenseeId] = att;
       return acc;
-    }, {} as Record<number, any>);
+    }, {});
+
+    const attendanceList = uniqueLicensees.map((licensee: any) => {
+      const existing = attendanceMap[licensee.id];
+      return {
+        sessionId: session_obj.id,
+        licenseeId: licensee.id,
+        licensee: licensee,
+        status: existing?.status || null,
+        remark: existing?.remark || "",
+        updatedAt: existing?.updatedAt || null
+      };
+    });
 
     return NextResponse.json({
-      sessionId: courseSession?.id || null,
-      attendance: attendanceData,
-      students: course.class.students
+      session: {
+        id: session_obj.id,
+        date: session_obj.date,
+        locked: session_obj.locked
+      },
+      attendance: attendanceList
     });
+
   } catch (error) {
-    console.error("Error fetching attendance:", error);
+    console.error("Error in GET attendance:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
+// POST - Mettre à jour les présences
 export async function POST(req: NextRequest, { params }: { params: Promise<{ courseId: string }> }) {
-  // Auth
   const session = await auth.api.getSession({ headers: req.headers });
-  if (!session)
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = session.user; // { id: string, role: 'ADMIN' | 'TEACHER' | ... }
+  }
 
-  // Params + payload
   const { courseId: courseIdStr } = await params;
   const courseId = Number(courseIdStr);
   if (!Number.isFinite(courseId)) {
     return NextResponse.json({ error: "Bad courseId" }, { status: 400 });
   }
-  const body = await req.json();
-  const dateStr: string = body?.date;
-  const attendance: Record<string, "PRESENT" | "JUSTIFIED" | null> = body?.attendance ?? {}; // { [studentId]: status }
-  const remarks: Record<string, string> = body?.remarks ?? {}; // { [studentId]: remark }
 
-  if (!dateStr) {
-    return NextResponse.json({ error: "Missing date" }, { status: 400 });
-  }
+  try {
+    const body = await req.json();
+    const { sessionId, licenseeId, status, remark } = body;
 
-  // Cours
-  const course = await prisma.course.findUnique({ where: { id: courseId } });
-  if (!course)
-    return NextResponse.json({ error: "Cours introuvable" }, { status: 404 });
-
-  // Get full user data with role
-  const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
-  if (!fullUser) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-
-  // Autorisation :
-  // - ADMIN : OK
-  // - TEACHER : il doit être le prof du cours (via Teacher.userId === user.id)
-  if (fullUser.role !== "ADMIN") {
-    if (fullUser.role !== "TEACHER") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!sessionId || !licenseeId) {
+      return NextResponse.json({ error: "Missing sessionId or licenseeId" }, { status: 400 });
     }
-    const teacher = await prisma.teacher.findUnique({
-      where: { userId: user.id },
-    });
-    if (!teacher || teacher.id !== course.teacherId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-  }
 
-  // Créer / trouver la session de cours à cette date
-  const sessionDate = new Date(dateStr); // ex: "2025-09-01"
-  // Si tu as @@unique([courseId, date]) et que tu veux éviter une violation d'unicité :
-  const courseSession = await prisma.courseSession.upsert({
-    where: { courseId_date: { courseId, date: sessionDate } },
-    update: {},
-    create: { courseId, date: sessionDate },
-  });
-
-  // Les élèves inscrits au cours = élèves de la classe du cours
-  const students = await prisma.student.findMany({
-    where: { classId: course.classId },
-    select: { id: true },
-  });
-  const validIds = new Set(students.map((s) => s.id));
-
-  // Construire les lignes de présence pour tous les étudiants
-  const rows = students.map(student => {
-    const studentId = student.id.toString();
-    const status = attendance[studentId];
-    const remark = remarks[studentId] || null;
+    // Vérifier l'accès
+    const course = await prisma.course.findUnique({ where: { id: courseId } });
+    const user = await prisma.user.findUnique({ where: { id: session.user.id } });
     
-    return {
-      sessionId: courseSession.id,
-      studentId: student.id,
-      status: status === "PRESENT" ? AttendanceStatus.PRESENT : 
-              status === "JUSTIFIED" ? AttendanceStatus.JUSTIFIED : null,
-      remark,
-      updatedBy: user.id,
-    };
-  });
+    if (!course || !user) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
 
-  // Upsert les présences pour tous les étudiants
-  for (const row of rows) {
-    await prisma.attendance.upsert({
+    const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } });
+    if (user.role !== "ADMIN" && !(user.role === "TEACHER" && teacher && course.teacherId === teacher.id)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Vérifier si la session est verrouillée
+    const courseSession = await prisma.courseSession.findUnique({ where: { id: sessionId } });
+    if (courseSession?.locked) {
+      return NextResponse.json({ error: "Session is locked" }, { status: 400 });
+    }
+
+    // Mettre à jour ou créer l'attendance
+    const attendance = await prisma.attendance.upsert({
       where: {
-        sessionId_studentId: {
-          sessionId: row.sessionId,
-          studentId: row.studentId
+        sessionId_licenseeId: {
+          sessionId: sessionId,
+          licenseeId: licenseeId
         }
       },
       update: {
-        status: row.status,
-        remark: row.remark,
-        updatedBy: row.updatedBy
+        status: status === null ? null : status as AttendanceStatus,
+        remark: remark || null,
+        updatedBy: session.user.id
       },
-      create: row
+      create: {
+        sessionId: sessionId,
+        licenseeId: licenseeId,
+        status: status === null ? null : status as AttendanceStatus,
+        remark: remark || null,
+        updatedBy: session.user.id
+      },
+      include: {
+        licensee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true
+          }
+        }
+      }
     });
-  }
 
-  return NextResponse.json({ ok: true, sessionId: courseSession.id });
+    return NextResponse.json(attendance);
+
+  } catch (error) {
+    console.error("Error in POST attendance:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

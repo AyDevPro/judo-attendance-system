@@ -12,25 +12,29 @@ interface Teacher {
   coursesCount: number;
 }
 
+interface Group {
+  id: number;
+  name: string;
+  type: string;
+  description: string | null;
+}
+
 interface Course {
   id: number;
   name: string;
-  ageGroup: string;
-  teacher: {
-    id: number;
-    user: {
-      id: string;
-      name: string | null;
-      email: string;
+  teachers: Array<{
+    teacher: {
+      id: number;
+      user: {
+        id: string;
+        name: string | null;
+        email: string;
+      };
     };
-  };
-  class: {
-    id: number;
-    name: string;
-    _count: {
-      students: number;
-    };
-  };
+  }>;
+  groups: Array<{
+    group: Group;
+  }>;
   timetable: Array<{
     id: number;
     weekday: number;
@@ -46,6 +50,7 @@ function BureauCoursesPage() {
   const { user } = useAuth(["ADMIN", "BUREAU"]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -53,12 +58,11 @@ function BureauCoursesPage() {
   // Form state
   const [formData, setFormData] = useState({
     name: "",
-    ageGroup: "POUSSIN",
-    teacherId: "",
+    selectedTeachers: [] as number[],
+    selectedGroups: [] as number[],
     weekday: "1",
     startsAt: "09:00",
-    endsAt: "10:00",
-    className: ""
+    endsAt: "10:00"
   });
 
   const weekDays = [
@@ -71,18 +75,8 @@ function BureauCoursesPage() {
     { value: 7, label: "Dimanche" }
   ];
 
-  const ageGroups = [
-    { value: "BABY_JUDO", label: "Baby Judo (4-5 ans)" },
-    { value: "POUSSIN", label: "Poussin (6-7 ans)" },
-    { value: "BENJAMIN", label: "Benjamin (8-9 ans)" },
-    { value: "MINIME", label: "Minime (10-11 ans)" },
-    { value: "CADET", label: "Cadet (12-13 ans)" },
-    { value: "JUNIOR", label: "Junior (14-17 ans)" },
-    { value: "SENIOR", label: "Senior (18+ ans)" }
-  ];
-
   useEffect(() => {
-    Promise.all([fetchCourses(), fetchTeachers()]);
+    Promise.all([fetchCourses(), fetchTeachers(), fetchGroups()]);
   }, []);
 
   const fetchCourses = async () => {
@@ -115,14 +109,41 @@ function BureauCoursesPage() {
     }
   };
 
+  const fetchGroups = async () => {
+    try {
+      const response = await fetch("/api/bureau/groups");
+      if (!response.ok) {
+        throw new Error("Failed to fetch groups");
+      }
+      const data = await response.json();
+      setGroups(data);
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (formData.selectedGroups.length === 0) {
+      alert("Veuillez sélectionner au moins un groupe");
+      return;
+    }
+    
+    if (formData.selectedTeachers.length === 0) {
+      alert("Veuillez sélectionner au moins un professeur");
+      return;
+    }
     
     try {
       const response = await fetch("/api/bureau/courses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          groupIds: formData.selectedGroups,
+          teacherIds: formData.selectedTeachers
+        })
       });
 
       if (!response.ok) {
@@ -133,12 +154,11 @@ function BureauCoursesPage() {
       // Reset form and refresh data
       setFormData({
         name: "",
-        ageGroup: "POUSSIN",
-        teacherId: "",
+        selectedTeachers: [],
+        selectedGroups: [],
         weekday: "1",
         startsAt: "09:00",
-        endsAt: "10:00",
-        className: ""
+        endsAt: "10:00"
       });
       setShowCreateForm(false);
       await fetchCourses();
@@ -149,10 +169,24 @@ function BureauCoursesPage() {
     }
   };
 
-  const getAgeGroupLabel = (ageGroup: string) => {
-    const group = ageGroups.find(g => g.value === ageGroup);
-    return group ? group.label : ageGroup;
+  const handleGroupToggle = (groupId: number) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedGroups: prev.selectedGroups.includes(groupId)
+        ? prev.selectedGroups.filter(id => id !== groupId)
+        : [...prev.selectedGroups, groupId]
+    }));
   };
+
+  const handleTeacherToggle = (teacherId: number) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedTeachers: prev.selectedTeachers.includes(teacherId)
+        ? prev.selectedTeachers.filter(id => id !== teacherId)
+        : [...prev.selectedTeachers, teacherId]
+    }));
+  };
+
 
   const getWeekdayLabel = (weekday: number) => {
     const day = weekDays.find(d => d.value === weekday);
@@ -179,214 +213,430 @@ function BureauCoursesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Gestion des cours</h1>
-        <button
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {showCreateForm ? "Annuler" : "Nouveau cours"}
-        </button>
-      </div>
-
-      {/* Formulaire de création */}
-      {showCreateForm && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Créer un nouveau cours</h2>
-          
-          <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-4">
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <div className="flex justify-between items-center">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nom du cours *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: Judo débutant"
-              />
+              <h1 className="text-3xl font-bold text-gray-900">Gestion des cours</h1>
+              <p className="mt-2 text-sm text-gray-600">
+                Créez et gérez les cours avec leurs groupes d'âge et horaires
+              </p>
             </div>
+            <button
+              onClick={() => setShowCreateForm(!showCreateForm)}
+              className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm transition-all duration-200"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {showCreateForm ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                )}
+              </svg>
+              {showCreateForm ? "Annuler" : "Nouveau cours"}
+            </button>
+          </div>
+        </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tranche d'âge *
-              </label>
-              <select
-                required
-                value={formData.ageGroup}
-                onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {ageGroups.map(group => (
-                  <option key={group.value} value={group.value}>{group.label}</option>
-                ))}
-              </select>
+        {/* Formulaire de création */}
+        {showCreateForm && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-8 overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                Créer un nouveau cours
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">Remplissez les informations du cours et sélectionnez les groupes</p>
             </div>
+            
+            <form onSubmit={handleSubmit} className="p-6">
+              <div className="grid lg:grid-cols-3 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <span className="flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        Nom du cours *
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      placeholder="Ex: Judo débutant"
+                    />
+                  </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Professeur *
-              </label>
-              <select
-                required
-                value={formData.teacherId}
-                onChange={(e) => setFormData({ ...formData, teacherId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Sélectionner un professeur</option>
-                {teachers.map(teacher => (
-                  <option key={teacher.id} value={teacher.id}>
-                    {teacher.name || teacher.email} ({teacher.coursesCount} cours)
-                  </option>
-                ))}
-              </select>
-            </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      <span className="flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Professeur(s) *
+                      </span>
+                    </label>
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 max-h-48 overflow-y-auto">
+                      <div className="space-y-3">
+                        {teachers.map(teacher => (
+                          <label key={teacher.id} className="relative flex items-center space-x-3 cursor-pointer group">
+                            <div className="flex items-center h-5">
+                              <input
+                                type="checkbox"
+                                checked={formData.selectedTeachers.includes(teacher.id)}
+                                onChange={() => handleTeacherToggle(teacher.id)}
+                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-sm font-medium transition-colors duration-200 ${
+                                formData.selectedTeachers.includes(teacher.id)
+                                  ? 'text-blue-700' 
+                                  : 'text-gray-700 group-hover:text-gray-900'
+                              }`}>
+                                {teacher.name || teacher.email}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {teacher.coursesCount} cours assigné{teacher.coursesCount > 1 ? 's' : ''}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      {formData.selectedTeachers.length === 0 && (
+                        <p className="text-sm text-red-500 mt-3 flex items-center">
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Au moins un professeur doit être sélectionné
+                        </p>
+                      )}
+                      {formData.selectedTeachers.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {formData.selectedTeachers.map(teacherId => {
+                            const teacher = teachers.find(t => t.id === teacherId);
+                            return teacher ? (
+                              <span key={teacherId} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {teacher.name || teacher.email}
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Jour de la semaine *
-              </label>
-              <select
-                required
-                value={formData.weekday}
-                onChange={(e) => setFormData({ ...formData, weekday: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {weekDays.map(day => (
-                  <option key={day.value} value={day.value}>{day.label}</option>
-                ))}
-              </select>
-            </div>
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    <span className="flex items-center">
+                      <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      Groupes affectés *
+                    </span>
+                  </label>
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {groups.map(group => (
+                        <label key={group.id} className="relative flex items-center space-x-3 cursor-pointer group">
+                          <div className="flex items-center h-5">
+                            <input
+                              type="checkbox"
+                              checked={formData.selectedGroups.includes(group.id)}
+                              onChange={() => handleGroupToggle(group.id)}
+                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className={`text-sm font-medium transition-colors duration-200 ${
+                              formData.selectedGroups.includes(group.id) 
+                                ? 'text-blue-700' 
+                                : 'text-gray-700 group-hover:text-gray-900'
+                            }`}>
+                              {group.name}
+                            </span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    {formData.selectedGroups.length === 0 && (
+                      <p className="text-sm text-red-500 mt-3 flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Au moins un groupe doit être sélectionné
+                      </p>
+                    )}
+                    {formData.selectedGroups.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {formData.selectedGroups.map(groupId => {
+                          const group = groups.find(g => g.id === groupId);
+                          return group ? (
+                            <span key={groupId} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {group.name}
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Heure de début *
-              </label>
-              <input
-                type="time"
-                required
-                value={formData.startsAt}
-                onChange={(e) => setFormData({ ...formData, startsAt: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <span className="flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a1 1 0 011-1h6a1 1 0 011 1v4m-9 8h10m-5-5v3m0-3V7" />
+                        </svg>
+                        Jour de la semaine *
+                      </span>
+                    </label>
+                    <select
+                      required
+                      value={formData.weekday}
+                      onChange={(e) => setFormData({ ...formData, weekday: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    >
+                      {weekDays.map(day => (
+                        <option key={day.value} value={day.value}>{day.label}</option>
+                      ))}
+                    </select>
+                  </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Heure de fin *
-              </label>
-              <input
-                type="time"
-                required
-                value={formData.endsAt}
-                onChange={(e) => setFormData({ ...formData, endsAt: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Heure de début *
+                      </label>
+                      <input
+                        type="time"
+                        required
+                        value={formData.startsAt}
+                        onChange={(e) => setFormData({ ...formData, startsAt: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      />
+                    </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nom de la classe (optionnel)
-              </label>
-              <input
-                type="text"
-                value={formData.className}
-                onChange={(e) => setFormData({ ...formData, className: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Laissez vide pour générer automatiquement"
-              />
-            </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Heure de fin *
+                      </label>
+                      <input
+                        type="time"
+                        required
+                        value={formData.endsAt}
+                        onChange={(e) => setFormData({ ...formData, endsAt: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-            <div className="md:col-span-2 flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(false)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Créer le cours
-              </button>
-            </div>
+              <div className="lg:col-span-3 flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateForm(false)}
+                  className="px-6 py-3 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={formData.selectedGroups.length === 0 || formData.selectedTeachers.length === 0}
+                  className={`px-6 py-3 text-sm font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 ${
+                    formData.selectedGroups.length === 0 || formData.selectedTeachers.length === 0
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 focus:ring-blue-500 shadow-sm'
+                  }`}
+                >
+                  <svg className="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Créer le cours
+                </button>
+              </div>
           </form>
         </div>
       )}
 
-      {/* Liste des cours */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Cours existants ({courses.length})
-          </h2>
-        </div>
+        {/* Liste des cours */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                Cours existants
+              </h2>
+              <span className="bg-blue-100 text-blue-800 text-xs font-medium px-3 py-1 rounded-full">
+                {courses.length} cours
+              </span>
+            </div>
+          </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Cours
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Professeur
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Horaire
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Classe
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Sessions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {courses.map((course) => (
-                <tr key={course.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{course.name}</div>
-                      <div className="text-sm text-gray-500">{getAgeGroupLabel(course.ageGroup)}</div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      </svg>
+                      Cours
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {course.teacher.user.name || course.teacher.user.email}
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Professeur
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {course.timetable.map((schedule) => (
-                      <div key={schedule.id} className="text-sm text-gray-900">
-                        {getWeekdayLabel(schedule.weekday)} {schedule.startsAt} - {schedule.endsAt}
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Horaire
+                    </div>
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      Groupes
+                    </div>
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      Sessions
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {courses.map((course) => (
+                  <tr key={course.id} className="hover:bg-blue-50 transition-colors duration-150">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10">
+                          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                            <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-semibold text-gray-900">{course.name}</div>
+                          <div className="text-sm text-gray-500">
+                            {course.groups.map(g => g.group.name).join(" + ")} • {getWeekdayLabel(course.timetable[0]?.weekday)}
+                          </div>
+                        </div>
                       </div>
-                    ))}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{course.class.name}</div>
-                    <div className="text-sm text-gray-500">{course.class._count.students} étudiant(s)</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {course._count.sessions} session(s)
-                  </td>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {course.teachers.map(({ teacher }) => (
+                          <div key={teacher.id} className="flex items-center bg-gray-50 rounded-lg px-3 py-1">
+                            <div className="flex-shrink-0 h-6 w-6">
+                              <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center">
+                                <svg className="h-3 w-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                              </div>
+                            </div>
+                            <div className="ml-2">
+                              <div className="text-xs font-medium text-gray-900">
+                                {teacher.user.name || teacher.user.email}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {course.teachers.length === 0 && (
+                        <div className="text-sm text-gray-400 italic">Aucun professeur assigné</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {course.timetable.map((schedule) => (
+                        <div key={schedule.id} className="text-sm">
+                          <div className="text-gray-900 font-medium">
+                            {getWeekdayLabel(schedule.weekday)}
+                          </div>
+                          <div className="text-gray-500">
+                            {schedule.startsAt} - {schedule.endsAt}
+                          </div>
+                        </div>
+                      ))}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {course.groups.map(({ group }) => (
+                          <span
+                            key={group.id}
+                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border border-blue-200"
+                          >
+                            {group.name}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="text-sm font-medium text-gray-900">
+                          {course._count.sessions}
+                        </div>
+                        <div className="text-sm text-gray-500 ml-1">
+                          session{course._count.sessions > 1 ? 's' : ''}
+                        </div>
+                      </div>
+                    </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-
-        {courses.length === 0 && (
-          <div className="px-6 py-8 text-center text-gray-500">
-            Aucun cours créé pour le moment.
           </div>
-        )}
+
+          {courses.length === 0 && (
+            <div className="px-6 py-12 text-center">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              <h3 className="mt-4 text-sm font-medium text-gray-900">Aucun cours</h3>
+              <p className="mt-2 text-sm text-gray-500">
+                Commencez par créer votre premier cours avec des groupes et un horaire.
+              </p>
+              <div className="mt-6">
+                <button
+                  onClick={() => setShowCreateForm(true)}
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Créer un cours
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

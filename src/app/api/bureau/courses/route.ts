@@ -22,26 +22,24 @@ export async function GET(req: NextRequest) {
   try {
     const courses = await prisma.course.findMany({
       include: {
-        teacher: {
+        teachers: {
           include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true
+            teacher: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true
+                  }
+                }
               }
             }
           }
         },
-        class: {
-          select: {
-            id: true,
-            name: true,
-            _count: {
-              select: {
-                students: true
-              }
-            }
+        groups: {
+          include: {
+            group: true
           }
         },
         timetable: {
@@ -86,18 +84,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { name, ageGroup, teacherId, weekday, startsAt, endsAt, className } = await req.json();
+    const { name, teacherIds, groupIds, weekday, startsAt, endsAt } = await req.json();
 
-    if (!name || !ageGroup || !teacherId || !weekday || !startsAt || !endsAt) {
+    if (!name || !teacherIds || !Array.isArray(teacherIds) || teacherIds.length === 0 || !groupIds || !Array.isArray(groupIds) || groupIds.length === 0 || !weekday || !startsAt || !endsAt) {
       return NextResponse.json({ 
-        error: "Name, ageGroup, teacherId, weekday, startsAt, and endsAt are required" 
+        error: "Name, teacherIds (array), groupIds (array), weekday, startsAt, and endsAt are required" 
       }, { status: 400 });
-    }
-
-    // Valider l'enum AgeGroup
-    const validAgeGroups = ["BABY_JUDO", "POUSSIN", "BENJAMIN", "MINIME", "CADET", "JUNIOR", "SENIOR"];
-    if (!validAgeGroups.includes(ageGroup)) {
-      return NextResponse.json({ error: "Invalid age group" }, { status: 400 });
     }
 
     // Valider le jour de la semaine (1-7)
@@ -105,10 +97,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid weekday (must be 1-7)" }, { status: 400 });
     }
 
-    // Vérifier que le professeur existe et est bien un TEACHER
-    const teacher = await prisma.teacher.findFirst({
+    // Vérifier que tous les professeurs existent et sont bien des TEACHER
+    const teachers = await prisma.teacher.findMany({
       where: {
-        id: parseInt(teacherId),
+        id: {
+          in: teacherIds.map(id => parseInt(id))
+        },
         user: {
           role: "TEACHER",
           blocked: false
@@ -116,62 +110,93 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    if (!teacher) {
-      return NextResponse.json({ error: "Teacher not found or invalid" }, { status: 400 });
+    if (teachers.length !== teacherIds.length) {
+      return NextResponse.json({ error: "One or more teachers not found or invalid" }, { status: 400 });
     }
 
-    // Créer ou récupérer la classe
-    let courseClass;
-    if (className) {
-      courseClass = await prisma.class.upsert({
-        where: { name: className },
-        update: {},
-        create: { name: className }
-      });
-    } else {
-      // Créer une classe par défaut basée sur le nom du cours
-      courseClass = await prisma.class.upsert({
-        where: { name: `Classe ${name}` },
-        update: {},
-        create: { name: `Classe ${name}` }
-      });
-    }
-
-    // Créer le cours avec son horaire
-    const course = await prisma.course.create({
-      data: {
-        name,
-        ageGroup,
-        classId: courseClass.id,
-        teacherId: parseInt(teacherId),
-        timetable: {
-          create: {
-            weekday: parseInt(weekday),
-            startsAt,
-            endsAt
-          }
+    // Vérifier que tous les groupes existent
+    const validGroups = await prisma.group.findMany({
+      where: {
+        id: {
+          in: groupIds.map(id => parseInt(id))
         }
-      },
-      include: {
-        teacher: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true
-              }
+      }
+    });
+
+    if (validGroups.length !== groupIds.length) {
+      return NextResponse.json({ error: "One or more groups not found" }, { status: 400 });
+    }
+
+    // Créer le cours avec ses groupes et son horaire dans une transaction
+    const course = await prisma.$transaction(async (tx) => {
+      // Créer le cours
+      const newCourse = await tx.course.create({
+        data: {
+          name,
+          timetable: {
+            create: {
+              weekday: parseInt(weekday),
+              startsAt,
+              endsAt
             }
           }
-        },
-        class: {
-          select: {
-            id: true,
-            name: true
+        }
+      });
+
+      // Assigner les professeurs au cours
+      for (const teacherId of teacherIds) {
+        await tx.courseTeacher.create({
+          data: {
+            courseId: newCourse.id,
+            teacherId: parseInt(teacherId)
           }
-        },
-        timetable: true
+        });
       }
+
+      // Assigner les groupes au cours
+      for (const groupId of groupIds) {
+        await tx.courseGroup.create({
+          data: {
+            courseId: newCourse.id,
+            groupId: parseInt(groupId)
+          }
+        });
+      }
+
+      // Retourner le cours complet
+      return await tx.course.findUnique({
+        where: { id: newCourse.id },
+        include: {
+          teachers: {
+            include: {
+              teacher: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          groups: {
+            include: {
+              group: true
+            }
+          },
+          timetable: {
+            select: {
+              id: true,
+              weekday: true,
+              startsAt: true,
+              endsAt: true
+            }
+          }
+        }
+      });
     });
 
     return NextResponse.json(course, { status: 201 });

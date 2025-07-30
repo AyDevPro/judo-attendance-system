@@ -55,7 +55,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
       include: {
         attendance: {
           include: {
-            student: {
+            licensee: {
               select: {
                 id: true,
                 firstName: true,
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
 
     // Calculer les statistiques pour chaque session
     const sessionsWithStats = sessions.map(session => {
-      const totalStudents = session.attendance.length;
+      const totalLicensees = session.attendance.length;
       const presentCount = session.attendance.filter(a => a.status === "PRESENT").length;
       const justifiedCount = session.attendance.filter(a => a.status === "JUSTIFIED").length;
       const absentCount = session.attendance.filter(a => a.status === null).length;
@@ -80,14 +80,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
         date: session.date,
         locked: session.locked,
         stats: {
-          totalStudents,
+          totalLicensees,
           presentCount,
           justifiedCount,
           absentCount,
-          attendanceRate: totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0
+          attendanceRate: totalLicensees > 0 ? Math.round((presentCount / totalLicensees) * 100) : 0
         },
         attendance: session.attendance.map(a => ({
-          student: a.student,
+          licensee: a.licensee,
           status: a.status,
           remark: a.remark
         }))

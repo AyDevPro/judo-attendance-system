@@ -33,11 +33,7 @@ export async function GET(req: NextRequest) {
         teacher: {
           select: {
             id: true,
-            _count: {
-              select: {
-                courses: true
-              }
-            }
+            courses: true
           }
         }
       },
@@ -54,11 +50,7 @@ export async function GET(req: NextRequest) {
               userId: user.id
             },
             include: {
-              _count: {
-                select: {
-                  courses: true
-                }
-              }
+              courses: true
             }
           });
           
@@ -76,7 +68,7 @@ export async function GET(req: NextRequest) {
           userId: user.id,
           name: user.name,
           email: user.email,
-          coursesCount: user.teacher._count.courses
+          coursesCount: user.teacher.courses.length
         };
       })
     );

@@ -39,52 +39,103 @@ enum Role {
   TEACHER
 }
 
-enum AgeGroup {
-  BABY_JUDO      // 4-5 ans
-  POUSSIN        // 6-7 ans  
-  BENJAMIN       // 8-9 ans
-  MINIME         // 10-11 ans
-  CADET          // 12-13 ans
-  JUNIOR         // 14-17 ans
-  SENIOR         // 18+ ans
+enum GroupType {
+  PRIMA
+  J2
+  J3
+  J4
+  J5_JUDO
+  J5_JUJITSU
+  JUJITSU_JEUNE
+  NE_WAZA
+  TAISO
+  SELF_DEFENSE
+  YOGA
 }
 
 model Teacher {
   id      Int    @id @default(autoincrement())
   userId  String @unique
   user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courses Course[]
+  courses CourseTeacher[]
 }
 
-// ========= Métier : Classes / Cours =========
+// ========= Métier : Licenciés / Groupes / Cours =========
 
-model Class {
-  id       Int      @id @default(autoincrement())
-  name     String   @unique
-  students Student[]
-  courses  Course[]
+model Group {
+  id           Int                @id @default(autoincrement())
+  name         String             @unique
+  type         GroupType
+  description  String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  
+  // Relations
+  licensees    LicenseeGroup[]
+  courses      CourseGroup[]
 }
 
-model Student {
-  id         Int       @id @default(autoincrement())
-  firstName  String
-  lastName   String
-  externalId String?   @unique
-  classId    Int
-  class      Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
-  attendance Attendance[]
+model Licensee {
+  id           Int                @id @default(autoincrement())
+  firstName    String
+  lastName     String
+  dateOfBirth  DateTime
+  age          Int                // calculé automatiquement
+  externalId   String?            @unique
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  
+  // Relations
+  groups       LicenseeGroup[]
+  attendance   Attendance[]
+}
+
+model LicenseeGroup {
+  id          Int      @id @default(autoincrement())
+  licenseeId  Int
+  groupId     Int
+  assignedAt  DateTime @default(now())
+  
+  licensee    Licensee @relation(fields: [licenseeId], references: [id], onDelete: Cascade)
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  
+  @@unique([licenseeId, groupId])
 }
 
 model Course {
   id        Int      @id @default(autoincrement())
   name      String
-  ageGroup  AgeGroup
-  classId   Int
-  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
-  teacherId Int
-  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  
+  // Relations
+  teachers  CourseTeacher[]
+  groups    CourseGroup[]
   timetable Timetable[]
   sessions  CourseSession[]
+}
+
+model CourseGroup {
+  id        Int     @id @default(autoincrement())
+  courseId  Int
+  groupId   Int
+  
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  group     Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  
+  @@unique([courseId, groupId])
+}
+
+model CourseTeacher {
+  id        Int     @id @default(autoincrement())
+  courseId  Int
+  teacherId Int
+  assignedAt DateTime @default(now())
+  
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  @@unique([courseId, teacherId])
 }
 
 model Timetable {
@@ -115,19 +166,19 @@ enum AttendanceStatus {
 model Attendance {
   id         Int       @id @default(autoincrement())
   sessionId  Int
-  studentId  Int
+  licenseeId Int
   status     AttendanceStatus? // null = absence non justifiée
   remark     String?
   updatedBy  String?   // User.id (String)
   updatedAt  DateTime  @updatedAt
 
   session    CourseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  student    Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  licensee   Licensee      @relation(fields: [licenseeId], references: [id], onDelete: Cascade)
 
-  // relation nommée vers User, pour lever l’ambiguïté
+  // relation nommée vers User, pour lever l'ambiguïté
   updatedByUser User?      @relation("AttendanceUpdatedBy", fields: [updatedBy], references: [id])
 
-  @@unique([sessionId, studentId])
+  @@unique([sessionId, licenseeId])
 }
 
 model Period {

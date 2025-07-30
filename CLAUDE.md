@@ -15,6 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Database Management Commands
 - `docker exec attendance-db psql -U nextjs_app -d nextjs_db -c "SELECT * FROM \"User\";"` - Query database directly
 - `docker exec attendance-db psql -U nextjs_app -d nextjs_db -c "UPDATE \"User\" SET role = 'ADMIN' WHERE email = 'admin@email.com';"` - Update user roles
+- `docker exec attendance-web node seed.js` - Seed database with judo groups (Prima, J2, J3, J4, J5, etc.)
 
 ### Local Development (Alternative)
 - `npm run dev` - Start development server (requires local database setup)
@@ -28,6 +29,7 @@ This is a **role-based judo attendance management system** built with Next.js 15
 
 ### Tech Stack
 - **Frontend**: Next.js 15 with App Router, TypeScript, Tailwind CSS
+- **UI/UX**: Modern design system with gradients, cards, animations and responsive layout
 - **Authentication**: Better Auth v1.3.4 with email/password
 - **Database**: PostgreSQL with Prisma ORM v6.13.0
 - **Deployment**: Docker with docker-compose (dev mode with hot reload)
@@ -44,8 +46,8 @@ This is a **role-based judo attendance management system** built with Next.js 15
 
 2. **BUREAU** - Course management
    - Create courses with schedules and age groups
-   - Assign teachers to courses
-   - Manage academic structure
+   - Assign multiple teachers to courses (multi-teacher support)
+   - Manage academic structure with checkbox interface
 
 3. **TEACHER** - Course attendance
    - Access assigned courses only
@@ -55,7 +57,7 @@ This is a **role-based judo attendance management system** built with Next.js 15
 
 ### Core Domain Models
 
-**Judo-specific age groups:** BABY_JUDO, POUSSIN, BENJAMIN, MINIME, CADET, JUNIOR, SENIOR
+**Judo-specific groups:** PRIMA, J2, J3, J4, J5_JUDO, J5_JUJITSU, JUJITSU_JEUNE, NE_WAZA, TAISO, SELF_DEFENSE, YOGA
 
 1. **Users & Authentication**
    - User roles with hierarchical permissions
@@ -63,9 +65,10 @@ This is a **role-based judo attendance management system** built with Next.js 15
    - Better Auth session management
 
 2. **Academic Structure**
-   - Class → Course (with age groups) → CourseSession (specific dates)
+   - Courses with multiple age groups and multiple teachers (many-to-many relationships)
    - Timetable scheduling system
-   - Teacher assignment to courses
+   - Multi-teacher assignment to courses via CourseTeacher junction table
+   - Group assignment via CourseGroup junction table
 
 3. **Attendance System**
    - 3-state attendance: null (absent), PRESENT, JUSTIFIED
@@ -75,7 +78,8 @@ This is a **role-based judo attendance management system** built with Next.js 15
 
 ### Key Database Relationships
 - Users can have Teacher profiles for course assignment
-- Classes contain Students and have multiple age-specific Courses
+- **Multi-teacher support**: CourseTeacher junction table for many-to-many Course ↔ Teacher relationships
+- **Multi-group support**: CourseGroup junction table for many-to-many Course ↔ Group relationships
 - Courses have Timetables (recurring schedule) and CourseSessions (actual occurrences)
 - Attendance tracked per CourseSession per Student with audit trail
 - Period system for academic year management
@@ -137,16 +141,47 @@ After running migrations, create test users via API:
 4. Update roles via database: `docker exec attendance-db psql -U nextjs_app -d nextjs_db -c "UPDATE \"User\" SET role = 'ADMIN' WHERE email = 'admin@email.com';"`
 5. Access application at http://localhost:3000
 
+### Design System & UI/UX
+
+**Modern Professional Interface with Consistent Branding**
+
+1. **Color Palette**
+   - Primary gradients: Blue (#3B82F6) → Purple (#8B5CF6) → Indigo (#6366F1)
+   - Background: Gradient from blue-50 via indigo-50 to purple-50
+   - Semantic colors: Green (success), Red (errors), Gray (neutral)
+
+2. **Component Design**
+   - **Cards**: Rounded-2xl with shadow-lg, hover effects with scale and shadow
+   - **Buttons**: Gradient backgrounds, rounded-xl, transform hover effects
+   - **Forms**: Modern inputs with focus states and error handling
+   - **Loading States**: Skeleton screens and animated spinners
+   - **Navigation**: Responsive with role-based menu items
+
+3. **Typography & Layout**
+   - Gradient text for headings using bg-clip-text
+   - Consistent spacing with Tailwind's space-y system
+   - Responsive grid layouts (grid-cols-1 md:grid-cols-2 lg:grid-cols-3)
+   - Professional font weights and sizes
+
+4. **Interactive Elements**
+   - Hover animations with transform and transition effects
+   - Progressive disclosure for complex forms
+   - Toast notifications for user feedback
+   - Checkbox interfaces for multi-selection
+
 ### Key Features Implemented
-- ✅ Complete role-based authentication system
-- ✅ User registration and login (sign-up page functional)
-- ✅ Admin user management with role assignment
-- ✅ Course creation with age groups and teacher assignment
-- ✅ 3-click attendance tracking system
-- ✅ Hot reload development environment
-- ✅ Hierarchical permissions (ADMIN > BUREAU > TEACHER)
-- ✅ User blocking/unblocking functionality
-- ✅ Security: Admin self-modification prevention
+- ✅ **Complete role-based authentication system** with Better Auth
+- ✅ **Modern UI/UX design** with gradients, animations, and responsive cards
+- ✅ **Multi-teacher course management** via junction tables and checkbox interface
+- ✅ **Judo-specific groups** (Prima, J2, J3, J4, J5 Judo/Jujitsu, Ne-waza, Taiso, etc.)
+- ✅ **User registration and login** with professional styling
+- ✅ **Admin user management** with role assignment and user blocking
+- ✅ **Course creation** with multiple age groups and multiple teacher assignment
+- ✅ **3-click attendance tracking system** (absent → present → justified)
+- ✅ **Hot reload development environment** with Docker
+- ✅ **Hierarchical permissions** (ADMIN > BUREAU > TEACHER)
+- ✅ **Security features**: Admin self-modification prevention, user blocking
+- ✅ **Modern landing page** with judo-specific branding and features
 
 ### Repository
 - **GitHub**: https://github.com/AyDevPro/judo-attendance-system
