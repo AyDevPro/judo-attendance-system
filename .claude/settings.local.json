@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose:*)",
+      "Bash(curl:*)",
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(DATABASE_URL=\"postgresql://nextjs_user:password@localhost:5432/nextjs_db\" npx prisma migrate dev --name add_blocked_and_age_groups)",
+      "Bash(docker cp:*)",
+      "Bash(git checkout:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(rm:*)",
+      "Bash(git init:*)"
+    ],
+    "deny": []
+  }
+}

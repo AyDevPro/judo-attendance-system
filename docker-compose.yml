@@ -1,0 +1,28 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: attendance-db
+    environment:
+      POSTGRES_USER: nextjs_app
+      POSTGRES_PASSWORD: nextjs_pass
+      POSTGRES_DB: nextjs_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+  web:
+    build: .
+    container_name: attendance-web
+    depends_on:
+      - db
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+volumes:
+  dbdata:
