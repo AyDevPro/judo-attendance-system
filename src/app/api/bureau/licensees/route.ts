@@ -109,3 +109,93 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to create licensee" }, { status: 500 });
   }
 }
+
+// PUT - Modifier un licencié existant (BUREAU et ADMIN)
+export async function PUT(req: NextRequest) {
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  if (!user || !["ADMIN", "BUREAU"].includes(user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const { id, firstName, lastName, dateOfBirth, age, externalId, groupIds } = await req.json();
+
+    if (!id || !firstName || !lastName || !dateOfBirth || !groupIds || groupIds.length === 0) {
+      return NextResponse.json({ 
+        error: "ID, firstName, lastName, dateOfBirth et au moins un groupe sont requis" 
+      }, { status: 400 });
+    }
+
+    // Vérifier que le licencié existe
+    const existingLicensee = await prisma.licensee.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!existingLicensee) {
+      return NextResponse.json({ error: "Licensee not found" }, { status: 404 });
+    }
+
+    // Check if external ID is unique if provided and different from current
+    if (externalId && externalId !== existingLicensee.externalId) {
+      const duplicateLicensee = await prisma.licensee.findUnique({
+        where: { externalId }
+      });
+      
+      if (duplicateLicensee && duplicateLicensee.id !== parseInt(id)) {
+        return NextResponse.json({ 
+          error: "Ce numéro de licence est déjà utilisé" 
+        }, { status: 400 });
+      }
+    }
+
+    // Update licensee with groups in a transaction
+    const licensee = await prisma.$transaction(async (tx) => {
+      // Update the licensee
+      await tx.licensee.update({
+        where: { id: parseInt(id) },
+        data: {
+          firstName,
+          lastName,
+          dateOfBirth: new Date(dateOfBirth),
+          age,
+          externalId: externalId || null
+        }
+      });
+
+      // Remove old group assignments
+      await tx.licenseeGroup.deleteMany({
+        where: { licenseeId: parseInt(id) }
+      });
+
+      // Assign new groups
+      for (const groupId of groupIds) {
+        await tx.licenseeGroup.create({
+          data: {
+            licenseeId: parseInt(id),
+            groupId: groupId
+          }
+        });
+      }
+
+      // Return licensee with groups
+      return await tx.licensee.findUnique({
+        where: { id: parseInt(id) },
+        include: {
+          groups: {
+            include: {
+              group: true
+            }
+          }
+        }
+      });
+    });
+
+    return NextResponse.json(licensee);
+  } catch (error) {
+    console.error("Error updating licensee:", error);
+    return NextResponse.json({ error: "Failed to update licensee" }, { status: 500 });
+  }
+}

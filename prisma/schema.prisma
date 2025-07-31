@@ -31,6 +31,9 @@ model User {
 
   // Qui a modifié une présence (clé étrangère sur Attendance.updatedBy)
   updatedAttendanceRecords Attendance[] @relation("AttendanceUpdatedBy")
+  
+  // Exclusions créées par cet utilisateur
+  exclusionsMade CourseLicenseeExclusion[] @relation("ExclusionMadeBy")
 }
 
 enum Role {
@@ -88,6 +91,7 @@ model Licensee {
   // Relations
   groups       LicenseeGroup[]
   attendance   Attendance[]
+  exclusions   CourseLicenseeExclusion[]
 }
 
 model LicenseeGroup {
@@ -113,6 +117,7 @@ model Course {
   groups    CourseGroup[]
   timetable Timetable[]
   sessions  CourseSession[]
+  exclusions CourseLicenseeExclusion[]
 }
 
 model CourseGroup {
@@ -192,6 +197,26 @@ model Period {
 model SchoolYearConfig {
   id             Int @id @default(autoincrement())
   yearStartMonth Int @default(9) // septembre
+}
+
+// ========= Exclusions de licenciés par cours =========
+
+model CourseLicenseeExclusion {
+  id          Int      @id @default(autoincrement())
+  courseId    Int
+  licenseeId  Int
+  excludedAt  DateTime @default(now())
+  excludedBy  String   // User.id qui a fait l'exclusion
+  reason      String?  // Raison optionnelle de l'exclusion
+  
+  // Relations
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  licensee       Licensee @relation(fields: [licenseeId], references: [id], onDelete: Cascade)
+  excludedByUser User     @relation("ExclusionMadeBy", fields: [excludedBy], references: [id])
+  
+  @@unique([courseId, licenseeId])
+  @@index([courseId])
+  @@index([licenseeId])
 }
 
 // ========= BetterAuth (Prisma Adapter) =========

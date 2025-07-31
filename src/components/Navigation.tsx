@@ -15,7 +15,8 @@ export default function Navigation() {
 
   // Récupérer les données complètes de l'utilisateur
   useEffect(() => {
-    if (isAuthenticated && baseUser && !fullUser) {
+    if (isAuthenticated && baseUser) {
+      // Toujours rafraîchir les données quand la session change
       fetch(`/api/user/me`)
         .then(res => res.json())
         .then(userData => {
@@ -37,8 +38,11 @@ export default function Navigation() {
             blocked: false
           });
         });
+    } else if (!isAuthenticated) {
+      // Réinitialiser les données utilisateur quand déconnecté
+      setFullUser(null);
     }
-  }, [isAuthenticated, baseUser, fullUser]);
+  }, [isAuthenticated, baseUser?.id]); // Surveillance de l'ID utilisateur pour détecter un changement
 
   // Fermer le dropdown quand on clique ailleurs
   useEffect(() => {
@@ -54,8 +58,9 @@ export default function Navigation() {
 
   const handleSignOut = async () => {
     await signOut();
-    router.push("/");
+    setFullUser(null); // Réinitialiser explicitement les données utilisateur
     setIsDropdownOpen(false);
+    router.push("/");
   };
 
   const handleProfileClick = () => {

@@ -28,6 +28,8 @@ function BureauLicenseesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingLicensee, setEditingLicensee] = useState<Licensee | null>(null);
+  const [showEditForm, setShowEditForm] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -137,6 +139,83 @@ function BureauLicenseesPage() {
     }));
   };
 
+  const handleEditLicensee = (licensee: Licensee) => {
+    setEditingLicensee(licensee);
+    setFormData({
+      firstName: licensee.firstName,
+      lastName: licensee.lastName,
+      dateOfBirth: licensee.dateOfBirth.split('T')[0], // Convert to YYYY-MM-DD format
+      externalId: licensee.externalId || "",
+      selectedGroups: licensee.groups.map(lg => lg.group.id)
+    });
+    setShowEditForm(true);
+    setShowCreateForm(false);
+  };
+
+  const handleUpdateLicensee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editingLicensee) return;
+    
+    if (!formData.dateOfBirth) {
+      alert("La date de naissance est obligatoire");
+      return;
+    }
+
+    if (formData.selectedGroups.length === 0) {
+      alert("Veuillez sélectionner au moins un groupe");
+      return;
+    }
+
+    const age = calculateAge(formData.dateOfBirth);
+    
+    try {
+      const response = await fetch("/api/bureau/licensees", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingLicensee.id,
+          ...formData,
+          age,
+          groupIds: formData.selectedGroups
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update licensee");
+      }
+
+      // Reset form and refresh data
+      setFormData({
+        firstName: "",
+        lastName: "",
+        dateOfBirth: "",
+        externalId: "",
+        selectedGroups: []
+      });
+      setShowEditForm(false);
+      setEditingLicensee(null);
+      await fetchLicensees();
+      
+      alert("Licencié modifié avec succès !");
+    } catch (error: any) {
+      alert("Erreur: " + error.message);
+    }
+  };
+
+  const cancelEdit = () => {
+    setShowEditForm(false);
+    setEditingLicensee(null);
+    setFormData({
+      firstName: "",
+      lastName: "",
+      dateOfBirth: "",
+      externalId: "",
+      selectedGroups: []
+    });
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR');
   };
@@ -172,8 +251,18 @@ function BureauLicenseesPage() {
               </p>
             </div>
             <button
-              onClick={() => setShowCreateForm(!showCreateForm)}
-              className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white text-sm font-medium rounded-lg hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-sm transition-all duration-200"
+              onClick={() => {
+                setShowCreateForm(!showCreateForm);
+                if (showEditForm) {
+                  cancelEdit();
+                }
+              }}
+              disabled={showEditForm}
+              className={`inline-flex items-center px-4 py-2 text-white text-sm font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-sm transition-all duration-200 ${
+                showEditForm 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800'
+              }`}
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {showCreateForm ? (
@@ -371,6 +460,191 @@ function BureauLicenseesPage() {
           </div>
         )}
 
+        {/* Formulaire d'édition */}
+        {showEditForm && editingLicensee && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-8 overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-50 to-cyan-50 px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Modifier le licencié: {editingLicensee.firstName} {editingLicensee.lastName}
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">Modifiez les informations du licencié et ses groupes</p>
+            </div>
+            
+            <form onSubmit={handleUpdateLicensee} className="p-6">
+              <div className="grid lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 grid md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <span className="flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Prénom *
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.firstName}
+                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      placeholder="Prénom du licencié"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <span className="flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Nom *
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.lastName}
+                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      placeholder="Nom de famille"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <span className="flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a1 1 0 011-1h6a1 1 0 011 1v4m-9 8h10M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        Date de naissance *
+                      </span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.dateOfBirth}
+                      onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    />
+                    {formData.dateOfBirth && (
+                      <div className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-sm text-blue-700 flex items-center">
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Âge calculé: {calculateAge(formData.dateOfBirth)} ans
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <span className="flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Numéro de licence
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.externalId}
+                      onChange={(e) => setFormData({ ...formData, externalId: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      placeholder="Ex: 12345678 (optionnel)"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    <span className="flex items-center">
+                      <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      Groupes affectés *
+                    </span>
+                  </label>
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {groups.map(group => (
+                        <label key={group.id} className="relative flex items-center space-x-3 cursor-pointer group">
+                          <div className="flex items-center h-5">
+                            <input
+                              type="checkbox"
+                              checked={formData.selectedGroups.includes(group.id)}
+                              onChange={() => handleGroupToggle(group.id)}
+                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className={`text-sm font-medium transition-colors duration-200 ${
+                              formData.selectedGroups.includes(group.id) 
+                                ? 'text-blue-700' 
+                                : 'text-gray-700 group-hover:text-gray-900'
+                            }`}>
+                              {group.name}
+                            </span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    {formData.selectedGroups.length === 0 && (
+                      <p className="text-sm text-red-500 mt-3 flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Au moins un groupe doit être sélectionné
+                      </p>
+                    )}
+                    {formData.selectedGroups.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {formData.selectedGroups.map(groupId => {
+                          const group = groups.find(g => g.id === groupId);
+                          return group ? (
+                            <span key={groupId} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {group.name}
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-3 flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  className="px-6 py-3 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={formData.selectedGroups.length === 0}
+                  className={`px-6 py-3 text-sm font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 ${
+                    formData.selectedGroups.length === 0
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 focus:ring-blue-500 shadow-sm'
+                  }`}
+                >
+                  <svg className="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Sauvegarder les modifications
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
         {/* Liste des licenciés */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
           <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
@@ -421,6 +695,14 @@ function BureauLicenseesPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
                     Groupes
+                  </div>
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <div className="flex items-center">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                    </svg>
+                    Actions
                   </div>
                 </th>
               </tr>
@@ -478,6 +760,24 @@ function BureauLicenseesPage() {
                           {group.name}
                         </span>
                       ))}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleEditLicensee(licensee)}
+                        disabled={showCreateForm}
+                        className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                          showCreateForm
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-green-50 text-green-700 hover:bg-green-100 focus:ring-green-500'
+                        }`}
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Modifier
+                      </button>
                     </div>
                   </td>
                 </tr>

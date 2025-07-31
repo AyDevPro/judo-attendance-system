@@ -20,7 +20,35 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
     const course = await prisma.course.findUnique({ 
       where: { id: courseId },
       include: {
-        teacher: true
+        teachers: {
+          include: {
+            teacher: {
+              select: {
+                id: true,
+                userId: true
+              }
+            }
+          }
+        },
+        groups: {
+          include: {
+            group: {
+              include: {
+                licensees: {
+                  include: {
+                    licensee: {
+                      select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     });
 
@@ -38,16 +66,42 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
       return NextResponse.json({ error: "User is blocked" }, { status: 403 });
     }
 
-    if (fullUser.role !== "ADMIN" && fullUser.role !== "TEACHER") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Vérifier les permissions pour le nouveau système multi-professeurs
+    if (fullUser.role === "ADMIN" || fullUser.role === "BUREAU") {
+      // ADMIN et BUREAU ont accès à tous les cours
+    } else if (fullUser.role === "TEACHER") {
+      // TEACHER doit être assigné au cours
+      const teacher = await prisma.teacher.findUnique({ where: { userId: fullUser.id } });
+      if (!teacher) {
+        return NextResponse.json({ error: "Teacher profile not found" }, { status: 403 });
+      }
+      
+      const isAssignedToThisCourse = course.teachers.some(ct => ct.teacherId === teacher.id);
+      if (!isAssignedToThisCourse) {
+        return NextResponse.json({ error: "Not assigned to this course" }, { status: 403 });
+      }
+    } else {
+      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
-    if (fullUser.role === "TEACHER") {
-      const teacher = await prisma.teacher.findUnique({ where: { userId: session.user.id } });
-      if (!teacher || teacher.id !== course.teacherId) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
-    }
+    // Get all active (non-excluded) licensees for this course
+    const allLicensees = course.groups.flatMap(cg =>
+      cg.group.licensees.map(lg => lg.licensee)
+    );
+    const uniqueLicensees = allLicensees.filter((licensee, index, self) =>
+      index === self.findIndex(l => l.id === licensee.id)
+    );
+
+    // Get excluded licensees for this course
+    const exclusions = await prisma.courseLicenseeExclusion.findMany({
+      where: { courseId: courseId },
+      select: { licenseeId: true }
+    });
+    
+    const excludedIds = new Set(exclusions.map(e => e.licenseeId));
+    const activeLicenseeIds = new Set(
+      uniqueLicensees.filter(licensee => !excludedIds.has(licensee.id)).map(l => l.id)
+    );
 
     // Récupérer toutes les sessions de ce cours
     const sessions = await prisma.courseSession.findMany({
@@ -68,26 +122,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
       orderBy: { date: 'desc' }
     });
 
-    // Calculer les statistiques pour chaque session
+    // Calculer les statistiques pour chaque session (en excluant les licenciés masqués)
     const sessionsWithStats = sessions.map(session => {
-      const totalLicensees = session.attendance.length;
-      const presentCount = session.attendance.filter(a => a.status === "PRESENT").length;
-      const justifiedCount = session.attendance.filter(a => a.status === "JUSTIFIED").length;
-      const absentCount = session.attendance.filter(a => a.status === null).length;
+      // Filter attendance to only include active licensees
+      const activeAttendance = session.attendance.filter(a => activeLicenseeIds.has(a.licenseeId));
+      
+      const totalStudents = activeLicenseeIds.size; // Total des licenciés actifs
+      const presentCount = activeAttendance.filter(a => a.status === "PRESENT").length;
+      const justifiedCount = activeAttendance.filter(a => a.status === "JUSTIFIED").length;
+      const absentCount = totalStudents - presentCount - justifiedCount; // Ceux qui n'ont pas de statut
 
       return {
         id: session.id,
         date: session.date,
         locked: session.locked,
         stats: {
-          totalLicensees,
+          totalStudents,
           presentCount,
           justifiedCount,
           absentCount,
-          attendanceRate: totalLicensees > 0 ? Math.round((presentCount / totalLicensees) * 100) : 0
+          attendanceRate: totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0
         },
-        attendance: session.attendance.map(a => ({
-          licensee: a.licensee,
+        attendance: activeAttendance.map(a => ({
+          student: a.licensee, // Renaming for frontend compatibility
           status: a.status,
           remark: a.remark
         }))

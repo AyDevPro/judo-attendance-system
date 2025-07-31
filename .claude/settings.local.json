@@ -18,7 +18,8 @@
       "Bash(docker stop:*)",
       "Bash(docker start:*)",
       "Bash(docker restart:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }

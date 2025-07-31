@@ -97,6 +97,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
       index === self.findIndex(l => l.id === licensee.id)
     );
 
+    // Get excluded licensees for this course
+    const exclusions = await prisma.courseLicenseeExclusion.findMany({
+      where: { courseId: courseId },
+      select: { licenseeId: true }
+    });
+    
+    const excludedIds = new Set(exclusions.map(e => e.licenseeId));
+    
+    // Filter out excluded licensees
+    const activeLicensees = uniqueLicensees.filter(licensee => !excludedIds.has(licensee.id));
+
     // Parse date
     const date = new Date(dateStr);
     date.setHours(0, 0, 0, 0);
@@ -154,14 +165,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
     }, {});
 
     // Convertir les licenciés en students avec la structure attendue
-    const students = uniqueLicensees.map((licensee: any) => ({
+    const students = activeLicensees.map((licensee: any) => ({
       id: licensee.id,
       firstName: licensee.firstName,
       lastName: licensee.lastName
     }));
 
     // Créer le map d'attendance avec la structure attendue
-    const attendance = uniqueLicensees.reduce((acc: any, licensee: any) => {
+    const attendance = activeLicensees.reduce((acc: any, licensee: any) => {
       const existing = attendanceMap[licensee.id];
       acc[licensee.id] = {
         student: {

@@ -58,5 +58,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
     index === self.findIndex(l => l.id === licensee.id)
   );
 
-  return NextResponse.json(uniqueLicensees);
+  // Get excluded licensees for this course
+  const exclusions = await prisma.courseLicenseeExclusion.findMany({
+    where: { courseId: parseInt(courseId) },
+    select: { licenseeId: true }
+  });
+
+  const excludedIds = new Set(exclusions.map(e => e.licenseeId));
+
+  // Filter out excluded licensees
+  const activeLicensees = uniqueLicensees.filter(licensee => !excludedIds.has(licensee.id));
+
+  return NextResponse.json(activeLicensees);
 }

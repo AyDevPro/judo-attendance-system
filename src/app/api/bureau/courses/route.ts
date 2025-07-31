@@ -205,3 +205,169 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+// PUT - Modifier un cours existant (BUREAU et ADMIN)
+export async function PUT(req: NextRequest) {
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Vérifier que l'utilisateur est BUREAU ou ADMIN
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true, blocked: true }
+  });
+
+  if (!user || user.blocked || !["ADMIN", "BUREAU"].includes(user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const { id, name, teacherIds, groupIds, weekday, startsAt, endsAt } = await req.json();
+
+    if (!id || !name || !teacherIds || !Array.isArray(teacherIds) || teacherIds.length === 0 || !groupIds || !Array.isArray(groupIds) || groupIds.length === 0 || !weekday || !startsAt || !endsAt) {
+      return NextResponse.json({ 
+        error: "ID, name, teacherIds (array), groupIds (array), weekday, startsAt, and endsAt are required" 
+      }, { status: 400 });
+    }
+
+    // Vérifier que le cours existe
+    const existingCourse = await prisma.course.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!existingCourse) {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    }
+
+    // Valider le jour de la semaine (1-7)
+    if (weekday < 1 || weekday > 7) {
+      return NextResponse.json({ error: "Invalid weekday (must be 1-7)" }, { status: 400 });
+    }
+
+    // Vérifier que tous les professeurs existent et sont bien des TEACHER
+    const teachers = await prisma.teacher.findMany({
+      where: {
+        id: {
+          in: teacherIds.map(id => parseInt(id))
+        },
+        user: {
+          role: "TEACHER",
+          blocked: false
+        }
+      }
+    });
+
+    if (teachers.length !== teacherIds.length) {
+      return NextResponse.json({ error: "One or more teachers not found or invalid" }, { status: 400 });
+    }
+
+    // Vérifier que tous les groupes existent
+    const validGroups = await prisma.group.findMany({
+      where: {
+        id: {
+          in: groupIds.map(id => parseInt(id))
+        }
+      }
+    });
+
+    if (validGroups.length !== groupIds.length) {
+      return NextResponse.json({ error: "One or more groups not found" }, { status: 400 });
+    }
+
+    // Modifier le cours avec ses groupes et son horaire dans une transaction
+    const course = await prisma.$transaction(async (tx) => {
+      // Mettre à jour le cours de base
+      await tx.course.update({
+        where: { id: parseInt(id) },
+        data: { name }
+      });
+
+      // Supprimer les anciennes assignations de professeurs
+      await tx.courseTeacher.deleteMany({
+        where: { courseId: parseInt(id) }
+      });
+
+      // Supprimer les anciennes assignations de groupes
+      await tx.courseGroup.deleteMany({
+        where: { courseId: parseInt(id) }
+      });
+
+      // Supprimer l'ancien horaire
+      await tx.timetable.deleteMany({
+        where: { courseId: parseInt(id) }
+      });
+
+      // Créer le nouvel horaire
+      await tx.timetable.create({
+        data: {
+          courseId: parseInt(id),
+          weekday: parseInt(weekday),
+          startsAt,
+          endsAt
+        }
+      });
+
+      // Assigner les nouveaux professeurs au cours
+      for (const teacherId of teacherIds) {
+        await tx.courseTeacher.create({
+          data: {
+            courseId: parseInt(id),
+            teacherId: parseInt(teacherId)
+          }
+        });
+      }
+
+      // Assigner les nouveaux groupes au cours
+      for (const groupId of groupIds) {
+        await tx.courseGroup.create({
+          data: {
+            courseId: parseInt(id),
+            groupId: parseInt(groupId)
+          }
+        });
+      }
+
+      // Retourner le cours complet
+      return await tx.course.findUnique({
+        where: { id: parseInt(id) },
+        include: {
+          teachers: {
+            include: {
+              teacher: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          groups: {
+            include: {
+              group: true
+            }
+          },
+          timetable: {
+            select: {
+              id: true,
+              weekday: true,
+              startsAt: true,
+              endsAt: true
+            }
+          }
+        }
+      });
+    });
+
+    return NextResponse.json(course);
+  } catch (error) {
+    console.error("Error updating course:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
