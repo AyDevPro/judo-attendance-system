@@ -19,7 +19,8 @@
       "Bash(docker start:*)",
       "Bash(docker restart:*)",
       "Bash(grep:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(cd:*)"
     ],
     "deny": []
   }
