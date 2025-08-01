@@ -371,3 +371,104 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+// DELETE - Supprimer un cours (BUREAU et ADMIN)
+export async function DELETE(req: NextRequest) {
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Vérifier que l'utilisateur est BUREAU ou ADMIN
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true, blocked: true }
+  });
+
+  if (!user || user.blocked || !["ADMIN", "BUREAU"].includes(user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const { id } = await req.json();
+
+    if (!id) {
+      return NextResponse.json({ 
+        error: "ID du cours requis" 
+      }, { status: 400 });
+    }
+
+    // Vérifier que le cours existe
+    const existingCourse = await prisma.course.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        teachers: true,
+        groups: true,
+        timetable: true,
+        _count: {
+          select: {
+            sessions: true
+          }
+        }
+      }
+    });
+
+    if (!existingCourse) {
+      return NextResponse.json({ error: "Cours non trouvé" }, { status: 404 });
+    }
+
+    // Supprimer le cours et toutes ses relations en transaction
+    await prisma.$transaction(async (tx) => {
+      // Supprimer les présences liées aux sessions de ce cours
+      await tx.attendance.deleteMany({
+        where: {
+          session: {
+            courseId: parseInt(id)
+          }
+        }
+      });
+
+      // Supprimer les sessions du cours
+      await tx.courseSession.deleteMany({
+        where: { courseId: parseInt(id) }
+      });
+
+      // Supprimer les exclusions liées à ce cours
+      await tx.courseLicenseeExclusion.deleteMany({
+        where: { courseId: parseInt(id) }
+      });
+
+      // Supprimer les relations avec les professeurs
+      await tx.courseTeacher.deleteMany({
+        where: { courseId: parseInt(id) }
+      });
+
+      // Supprimer les relations avec les groupes
+      await tx.courseGroup.deleteMany({
+        where: { courseId: parseInt(id) }
+      });
+
+      // Supprimer l'horaire du cours
+      await tx.timetable.deleteMany({
+        where: { courseId: parseInt(id) }
+      });
+
+      // Supprimer le cours lui-même
+      await tx.course.delete({
+        where: { id: parseInt(id) }
+      });
+    });
+
+    return NextResponse.json({ 
+      message: "Cours supprimé avec succès",
+      deletedCourse: {
+        id: existingCourse.id,
+        name: existingCourse.name,
+        sessionsCount: existingCourse._count.sessions
+      }
+    });
+  } catch (error) {
+    console.error("Error deleting course:", error);
+    return NextResponse.json({ error: "Échec de la suppression du cours" }, { status: 500 });
+  }
+}

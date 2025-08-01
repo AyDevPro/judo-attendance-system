@@ -5,6 +5,8 @@ import { hasRole } from "@/lib/auth-utils";
 import { useAuth } from "@/lib/auth-utils";
 import { SimpleColumnFilter, type ColumnConfig } from "@/components/SimpleColumnFilter";
 import { useToast } from "@/components/ToastProvider";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { useTableSort } from "@/hooks/useTableSort";
 
 interface Teacher {
   id: number;
@@ -50,8 +52,12 @@ interface Course {
 
 function BureauCoursesPage() {
   const { showSuccess, showError, showWarning } = useToast();
+  const { confirm } = useConfirm();
   const { user } = useAuth(["ADMIN", "BUREAU"]);
   const [courses, setCourses] = useState<Course[]>([]);
+  
+  // Hook de tri pour les cours
+  const { sortedData: sortedCourses, SortableHeader } = useTableSort(courses, 'name');
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
@@ -279,6 +285,37 @@ function BureauCoursesPage() {
       startsAt: "09:00",
       endsAt: "10:00"
     });
+  };
+
+  const handleDeleteCourse = async (course: Course) => {
+    const confirmed = await confirm({
+      title: "Supprimer le cours",
+      message: `Êtes-vous sûr de vouloir supprimer le cours "${course.name}" ?\n\nCette action supprimera définitivement toutes ses données (sessions, présences, exclusions, etc.).`,
+      confirmText: "Supprimer définitivement",
+      type: "danger"
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch("/api/bureau/courses", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: course.id })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete course");
+      }
+
+      // Mettre à jour la liste des cours
+      setCourses(prev => prev.filter(c => c.id !== course.id));
+      
+      showSuccess("Cours supprimé", `Le cours "${course.name}" a été supprimé définitivement.`);
+    } catch (error: any) {
+      showError("Erreur de suppression", error.message);
+    }
   };
 
   const getWeekdayLabel = (weekday: number) => {
@@ -831,60 +868,78 @@ function BureauCoursesPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    <div className="flex items-center">
+                  {visibleColumns.includes('course') && (
+                    <SortableHeader
+                      label="Cours"
+                      sortKey="name"
+                    >
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                       </svg>
                       Cours
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      Professeur
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Horaire
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                      Groupes
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                      Sessions
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    </SortableHeader>
+                  )}
+                  {visibleColumns.includes('teachers') && (
+                    <SortableHeader
+                      label="Professeur"
+                      sortKey="teachers.join"
+                    >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Professeur
+                    </SortableHeader>
+                  )}
+                  {visibleColumns.includes('schedule') && (
+                    <SortableHeader
+                      label="Horaire"
+                      sortKey="timetable.0.weekday"
+                    >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Horaire
+                    </SortableHeader>
+                  )}
+                  {visibleColumns.includes('groups') && (
+                    <SortableHeader
+                      label="Groupes"
+                      sortKey="groups.join"
+                    >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    Groupes
+                    </SortableHeader>
+                  )}
+                  {visibleColumns.includes('students') && (
+                    <SortableHeader
+                      label="Sessions"
+                      sortKey="_count.sessions"
+                    >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Sessions
+                    </SortableHeader>
+                  )}
+                  {visibleColumns.includes('actions') && (
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     <div className="flex items-center">
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                       </svg>
                       Actions
                     </div>
-                  </th>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {courses.map((course) => (
+                {sortedCourses.map((course) => (
                   <tr key={course.id} className="hover:bg-blue-50 transition-colors duration-150">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    {visibleColumns.includes('course') && (
+                      <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
                           <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
@@ -900,8 +955,10 @@ function BureauCoursesPage() {
                           </div>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
+                      </td>
+                    )}
+                    {visibleColumns.includes('teachers') && (
+                      <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">
                         {course.teachers.map(({ teacher }) => (
                           <div key={teacher.id} className="flex items-center bg-gray-50 rounded-lg px-3 py-1">
@@ -923,8 +980,10 @@ function BureauCoursesPage() {
                       {course.teachers.length === 0 && (
                         <div className="text-sm text-gray-400 italic">Aucun professeur assigné</div>
                       )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                      </td>
+                    )}
+                    {visibleColumns.includes('schedule') && (
+                      <td className="px-6 py-4 whitespace-nowrap">
                       {course.timetable.map((schedule) => (
                         <div key={schedule.id} className="text-sm">
                           <div className="text-gray-900 font-medium">
@@ -935,8 +994,10 @@ function BureauCoursesPage() {
                           </div>
                         </div>
                       ))}
-                    </td>
-                    <td className="px-6 py-4">
+                      </td>
+                    )}
+                    {visibleColumns.includes('groups') && (
+                      <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">
                         {course.groups.map(({ group }) => (
                           <span
@@ -947,8 +1008,10 @@ function BureauCoursesPage() {
                           </span>
                         ))}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                      </td>
+                    )}
+                    {visibleColumns.includes('students') && (
+                      <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="text-sm font-medium text-gray-900">
                           {course._count.sessions}
@@ -957,8 +1020,10 @@ function BureauCoursesPage() {
                           session{course._count.sessions > 1 ? 's' : ''}
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                      </td>
+                    )}
+                    {visibleColumns.includes('actions') && (
+                      <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => handleEditCourse(course)}
@@ -983,8 +1048,23 @@ function BureauCoursesPage() {
                           </svg>
                           Étudiants
                         </a>
+                        <button
+                          onClick={() => handleDeleteCourse(course)}
+                          disabled={showCreateForm}
+                          className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                            showCreateForm
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-red-50 text-red-700 hover:bg-red-100 focus:ring-red-500'
+                          }`}
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Supprimer
+                        </button>
                       </div>
-                    </td>
+                      </td>
+                    )}
                 </tr>
               ))}
             </tbody>

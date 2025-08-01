@@ -4,6 +4,7 @@ import { withAdminAuth } from "@/components/withAuth";
 import { useAuth } from "@/lib/auth-utils";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { useTableSort } from "@/hooks/useTableSort";
 
 interface User {
   id: string;
@@ -24,6 +25,9 @@ function AdminUsersPage() {
   const { showSuccess, showError } = useToast();
   const { confirm } = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
+  
+  // Hook de tri pour les utilisateurs
+  const { sortedData: sortedUsers, SortableHeader } = useTableSort(users, 'name');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "blocked" | "active">("all");
@@ -122,6 +126,9 @@ function AdminUsersPage() {
     if (roleFilter !== "all" && user.role !== roleFilter) return false;
     return true;
   });
+
+  // Appliquer le tri aux utilisateurs filtrés
+  const { sortedData: sortedFilteredUsers } = useTableSort(filteredUsers, 'name');
 
   if (loading) {
     return (
@@ -225,7 +232,7 @@ function AdminUsersPage() {
                 Utilisateurs du système
               </h2>
               <span className="bg-blue-100 text-blue-800 text-xs font-medium px-3 py-1 rounded-full">
-                {filteredUsers.length} utilisateur{filteredUsers.length > 1 ? 's' : ''}
+                {sortedFilteredUsers.length} utilisateur{sortedFilteredUsers.length > 1 ? 's' : ''}
               </span>
             </div>
           </div>
@@ -234,28 +241,33 @@ function AdminUsersPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Utilisateur
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Rôle
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Statut
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Sessions
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Créé le
-                </th>
+                <SortableHeader
+                  label="Utilisateur"
+                  sortKey="name"
+                />
+                <SortableHeader
+                  label="Rôle"
+                  sortKey="role"
+                />
+                <SortableHeader
+                  label="Statut"
+                  sortKey="blocked"
+                />
+                <SortableHeader
+                  label="Sessions"
+                  sortKey="_count.sessions"
+                />
+                <SortableHeader
+                  label="Créé le"
+                  sortKey="createdAt"
+                />
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredUsers.map((user) => (
+              {sortedFilteredUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-blue-50 transition-colors duration-150">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -366,7 +378,7 @@ function AdminUsersPage() {
           </table>
         </div>
 
-        {filteredUsers.length === 0 && (
+        {sortedFilteredUsers.length === 0 && (
           <div className="px-6 py-12 text-center">
             <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />

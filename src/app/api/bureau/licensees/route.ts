@@ -216,3 +216,71 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Failed to update licensee" }, { status: 500 });
   }
 }
+
+// DELETE - Supprimer un licencié (BUREAU et ADMIN)
+export async function DELETE(req: NextRequest) {
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  if (!user || !["ADMIN", "BUREAU"].includes(user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const { id } = await req.json();
+
+    if (!id) {
+      return NextResponse.json({ 
+        error: "ID du licencié requis" 
+      }, { status: 400 });
+    }
+
+    // Vérifier que le licencié existe
+    const existingLicensee = await prisma.licensee.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        groups: true
+      }
+    });
+
+    if (!existingLicensee) {
+      return NextResponse.json({ error: "Licencié non trouvé" }, { status: 404 });
+    }
+
+    // Supprimer le licencié et toutes ses relations en transaction
+    await prisma.$transaction(async (tx) => {
+      // Supprimer les relations avec les groupes
+      await tx.licenseeGroup.deleteMany({
+        where: { licenseeId: parseInt(id) }
+      });
+
+      // Supprimer les présences liées à ce licencié
+      await tx.attendance.deleteMany({
+        where: { licenseeId: parseInt(id) }
+      });
+
+      // Supprimer les exclusions liées à ce licencié
+      await tx.courseLicenseeExclusion.deleteMany({
+        where: { licenseeId: parseInt(id) }
+      });
+
+      // Supprimer le licencié lui-même
+      await tx.licensee.delete({
+        where: { id: parseInt(id) }
+      });
+    });
+
+    return NextResponse.json({ 
+      message: "Licencié supprimé avec succès",
+      deletedLicensee: {
+        id: existingLicensee.id,
+        firstName: existingLicensee.firstName,
+        lastName: existingLicensee.lastName
+      }
+    });
+  } catch (error) {
+    console.error("Error deleting licensee:", error);
+    return NextResponse.json({ error: "Échec de la suppression du licencié" }, { status: 500 });
+  }
+}

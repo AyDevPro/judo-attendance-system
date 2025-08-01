@@ -145,11 +145,50 @@ The system automatically creates on Docker startup (dev only):
 2. Access application at http://localhost:3000
 3. Login with test accounts (see above)
 4. All groups, users, and sample data are automatically created
+5. Use `docker logs attendance-web --tail 20` to monitor application logs
+6. Access database on port 5555 for direct queries if needed
+
+### Recent Development Activities & Bug Fixes
+- **Table Sorting System**: Implemented comprehensive sorting across all data tables
+- **Column Filtering**: Added user-customizable column visibility with localStorage persistence
+- **Course Automation**: Created bulk course creation script for season setup
+- **UI/UX Improvements**: Enhanced toast notifications, confirmation dialogs, and loading states
+- **CSV Operations**: Bulk import/export functionality for licensee management
+- **Error Handling**: Improved API error responses and user feedback
+- **Critical Bug Fixes**:
+  - ✅ Fixed course deletion API (wrong Prisma relation names)
+  - ✅ Fixed column filtering UI synchronization issues
+  - ✅ Fixed licensee deletion API (courseExclusion → courseLicenseeExclusion)
 
 ### Manual Operations (if needed)
 - `docker exec attendance-web npx prisma migrate dev --name <name>` - Create new migration
 - `docker exec attendance-web node prisma/seed.js` - Re-run seed manually
+- `docker exec attendance-web node scripts/create-season-courses.js` - Create all season courses
 - `docker compose down -v` - Reset database (will auto-seed on next startup)
+
+### Troubleshooting Guide
+
+**Common Issues & Solutions**
+1. **Syntax Errors**: Check conditional rendering brackets in table components
+2. **Column Filtering Not Working**: Ensure both headers and table cells have matching `visibleColumns.includes()` conditions
+3. **Database Connection**: Use `docker logs attendance-db` to check PostgreSQL status
+4. **Hot Reload Issues**: Restart container if webpack polling stops working
+5. **Permission Errors**: Check user roles and HOC protection on protected routes
+6. **API DELETE Errors**: Check Prisma model names (common: `courseExclusion` vs `courseLicenseeExclusion`)
+7. **500 Internal Server Errors**: Restart Docker containers after API changes: `docker compose restart web`
+
+**Performance Optimization**
+- Tables use `useMemo` for sorting operations
+- localStorage caching for user preferences
+- Efficient database queries with Prisma relations
+- Skeleton loading states for better UX
+
+**Development Best Practices**
+- Always test both desktop and mobile responsive layouts
+- Use confirmation dialogs for destructive actions
+- Implement proper error boundaries and fallbacks
+- Follow French language UI standards
+- Maintain consistent color palette and design system
 
 ### Design System & UI/UX
 
@@ -179,10 +218,92 @@ The system automatically creates on Docker startup (dev only):
    - Toast notifications for user feedback
    - Checkbox interfaces for multi-selection
 
+### Advanced UI/UX Features
+
+**Table Management System**
+- **Column Sorting**: Click-to-sort functionality on all table headers with visual indicators
+  - Supports string, number, and date sorting with null handling
+  - 3-state sorting cycle: ascending → descending → no sort
+  - Custom `useTableSort` hook with `SortableHeader` component
+- **Column Filtering**: Toggle column visibility with persistent user preferences
+  - `SimpleColumnFilter` component with checkbox interface
+  - localStorage persistence for user preferences
+  - Applied to courses, licensees, and users tables
+- **Responsive Tables**: Overflow-x-auto with consistent styling across all pages
+
+**Enhanced User Experience**
+- **Toast Notifications**: Success, error, warning, and info messages with animations
+- **Confirmation Dialogs**: Modal confirmations for destructive actions (delete, block users)
+- **Loading States**: Skeleton screens and spinners for better perceived performance
+- **Progressive Forms**: Multi-step forms with validation and error handling
+
+### Business Logic & Automation
+
+**Course Management Automation**
+- **Season Course Creation**: Automated script for creating all club courses
+  - 15 pre-configured courses with specific schedules
+  - Multi-day support (Lundi, Mercredi, Jeudi, Vendredi)
+  - Automatic teacher and group assignments
+  - Script location: `scripts/create-season-courses.js`
+
+**Attendance Management**
+- **3-State System**: absent (null) → present → justified → absent cycle
+- **Session Management**: Create and manage course sessions with date tracking
+- **Bulk Operations**: Handle multiple students and sessions efficiently
+
+### Component Architecture
+
+**Reusable Components**
+- `withAuth.tsx` - HOCs for role-based page protection (withAdminAuth, withBureauAuth, withTeacherAuth)
+- `Navigation.tsx` - Role-aware navigation with conditional menu items
+- `ToastProvider.tsx` - Global toast notification system
+- `ConfirmDialog.tsx` - Reusable modal confirmation dialogs
+- `SimpleColumnFilter.tsx` - Column visibility toggle with persistence
+
+**Custom Hooks**
+- `useTableSort` - Table sorting functionality with header components
+- `useAuth` - Authentication state and role checking
+- `useToast` - Toast notification management
+- `useConfirm` - Modal confirmation dialogs
+
+### Data Management
+
+**Licensee System**
+- **CSV Import/Export**: Bulk licensee management with validation
+- **Exclusion System**: Exclude specific licensees from courses
+- **Group Associations**: Many-to-many relationships with judo groups
+- **Belt Progression**: Track student belt colors and progression
+
+**Course Session Management**
+- **Automatic Session Creation**: Generate sessions based on course timetables
+- **Attendance Tracking**: Per-session attendance with remarks and audit trail
+- **Teacher Assignment**: Multi-teacher support with role-based access
+
+### API Architecture
+
+**Enhanced Endpoints**
+- `/api/bureau/courses` - Full CRUD operations with validation
+- `/api/bureau/licensees` - Licensee management with CSV operations
+- `/api/bureau/teachers` - Teacher assignment and management
+- `/api/courses/[courseId]/attendance` - Attendance tracking with validation
+- `/api/admin/users` - Complete user management with role updates
+
+**Error Handling**
+- Consistent error responses with proper HTTP status codes
+- Database transaction support for complex operations
+- Validation middleware for input sanitization
+- Proper cascade deletion for related records (attendance, exclusions, groups)
+- Transaction rollback on deletion failures
+
 ### Key Features Implemented
 - ✅ **Complete role-based authentication system** with Better Auth
 - ✅ **Modern UI/UX design** with gradients, animations, and responsive cards
+- ✅ **Advanced table management** with sorting, filtering, and column visibility controls
 - ✅ **Multi-teacher course management** via junction tables and checkbox interface
+- ✅ **Automated course creation system** for season setup
+- ✅ **CSV import/export system** for licensee bulk operations
+- ✅ **Licensee exclusion system** from specific courses
+- ✅ **Toast notification system** with confirmation dialogs
 - ✅ **Judo-specific groups** (Prima, J2, J3, J4, J5 Judo/Jujitsu, Ne-waza, Taiso, etc.)
 - ✅ **User registration and login** with professional styling
 - ✅ **Admin user management** with role assignment and user blocking

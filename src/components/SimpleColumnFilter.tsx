@@ -31,14 +31,12 @@ export function SimpleColumnFilter({
       if (saved) {
         const savedColumns = JSON.parse(saved);
         setVisibleColumns(savedColumns);
-        onFilterChange(savedColumns);
       } else {
         // Utiliser les colonnes par défaut
         const defaultColumns = columns
           .filter(col => col.defaultVisible)
           .map(col => col.key);
         setVisibleColumns(defaultColumns);
-        onFilterChange(defaultColumns);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des préférences:', error);
@@ -46,9 +44,15 @@ export function SimpleColumnFilter({
         .filter(col => col.defaultVisible)
         .map(col => col.key);
       setVisibleColumns(defaultColumns);
-      onFilterChange(defaultColumns);
     }
-  }, [storageKey, columns]); // Garder les dépendances mais ajouter une garde
+  }, [storageKey, columns]);
+
+  // Surveiller les changements de visibleColumns et notifier le parent
+  useEffect(() => {
+    if (visibleColumns.length > 0) {
+      onFilterChange(visibleColumns);
+    }
+  }, [visibleColumns, onFilterChange]);
 
   // Sauvegarder les préférences
   const savePreferences = (newColumns: string[]) => {
@@ -66,11 +70,11 @@ export function SimpleColumnFilter({
         ? prev.filter(key => key !== columnKey)
         : [...prev, columnKey];
       
-      onFilterChange(updated);
+      // Sauvegarder immédiatement les préférences
       savePreferences(updated);
       return updated;
     });
-  }, [onFilterChange]);
+  }, []);
 
   return (
     <div className="relative">

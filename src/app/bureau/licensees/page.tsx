@@ -5,6 +5,8 @@ import { getBeltColorDisplayName, getGenderDisplayName, type BeltColor, type Gen
 import { MinimalColumnFilter as SimpleColumnFilter, type ColumnConfig } from "@/components/MinimalColumnFilter";
 import { useToast } from "@/components/ToastProvider";
 import { Modal } from "@/components/Modal";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { useTableSort } from "@/hooks/useTableSort";
 
 interface Group {
   id: number;
@@ -30,7 +32,11 @@ interface Licensee {
 
 function BureauLicenseesPage() {
   const { showSuccess, showError, showWarning } = useToast();
+  const { confirm } = useConfirm();
   const [licensees, setLicensees] = useState<Licensee[]>([]);
+  
+  // Hook de tri pour les licenciés
+  const { sortedData: sortedLicensees, SortableHeader } = useTableSort(licensees, 'lastName');
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -257,6 +263,37 @@ function BureauLicenseesPage() {
 
   const cancelEdit = () => {
     resetAllStates();
+  };
+
+  const handleDeleteLicensee = async (licensee: Licensee) => {
+    const confirmed = await confirm({
+      title: "Supprimer le licencié",
+      message: `Êtes-vous sûr de vouloir supprimer ${licensee.firstName} ${licensee.lastName} ? Cette action supprimera définitivement toutes ses données (présences, exclusions, etc.).`,
+      confirmText: "Supprimer définitivement",
+      type: "danger"
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch("/api/bureau/licensees", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: licensee.id })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete licensee");
+      }
+
+      // Mettre à jour la liste des licenciés
+      setLicensees(prev => prev.filter(l => l.id !== licensee.id));
+      
+      showSuccess("Licencié supprimé", `${licensee.firstName} ${licensee.lastName} a été supprimé définitivement.`);
+    } catch (error: any) {
+      showError("Erreur de suppression", error.message);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -834,74 +871,88 @@ function BureauLicenseesPage() {
             <thead className="bg-gray-50">
               <tr>
                 {visibleColumns.includes('licensee') && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-80">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      Licencié
-                    </div>
-                  </th>
+                  <SortableHeader
+                    label="Licencié"
+                    sortKey="lastName"
+                    className="w-80"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Licencié
+                  </SortableHeader>
                 )}
                 {visibleColumns.includes('age') && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-16">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a1 1 0 011-1h6a1 1 0 011 1v4m-9 8h10M5 12h14m-7 7V5" />
-                      </svg>
-                      Âge
-                    </div>
-                  </th>
+                  <SortableHeader
+                    label="Âge"
+                    sortKey="age"
+                    className="w-16"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a1 1 0 011-1h6a1 1 0 011 1v4m-9 8h10M5 12h14m-7 7V5" />
+                    </svg>
+                    Âge
+                  </SortableHeader>
                 )}
                 {visibleColumns.includes('dateOfBirth') && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a1 1 0 011-1h6a1 1 0 011 1v4m-9 8h10M5 12h14m-7 7V5" />
-                      </svg>
-                      Date de naissance
-                    </div>
-                  </th>
+                  <SortableHeader
+                    label="Date de naissance"
+                    sortKey="dateOfBirth"
+                    className="w-28"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a1 1 0 011-1h6a1 1 0 011 1v4m-9 8h10M5 12h14m-7 7V5" />
+                    </svg>
+                    Date de naissance
+                  </SortableHeader>
                 )}
                 {visibleColumns.includes('gender') && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-20">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      Sexe
-                    </div>
-                  </th>
+                  <SortableHeader
+                    label="Sexe"
+                    sortKey="gender"
+                    className="w-20"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Sexe
+                  </SortableHeader>
                 )}
                 {visibleColumns.includes('belt') && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-24">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                      </svg>
-                      Ceinture
-                    </div>
-                  </th>
+                  <SortableHeader
+                    label="Ceinture"
+                    sortKey="beltColor"
+                    className="w-24"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                    Ceinture
+                  </SortableHeader>
                 )}
                 {visibleColumns.includes('license') && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-24">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Licence
-                    </div>
-                  </th>
+                  <SortableHeader
+                    label="Licence"
+                    sortKey="externalId"
+                    className="w-24"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Licence
+                  </SortableHeader>
                 )}
                 {visibleColumns.includes('groups') && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-64">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                      Groupes
-                    </div>
-                  </th>
+                  <SortableHeader
+                    label="Groupes"
+                    sortKey="groups.join"
+                    className="w-64"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 515.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    Groupes
+                  </SortableHeader>
                 )}
                 {visibleColumns.includes('actions') && (
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">
@@ -916,7 +967,7 @@ function BureauLicenseesPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {licensees.map((licensee) => (
+              {sortedLicensees.map((licensee) => (
                 <tr key={licensee.id} className="hover:bg-green-50 transition-colors duration-150">
                   {visibleColumns.includes('licensee') && (
                     <td className="px-4 py-3">
@@ -1015,6 +1066,20 @@ function BureauLicenseesPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                           Modifier
+                        </button>
+                        <button
+                          onClick={() => handleDeleteLicensee(licensee)}
+                          disabled={showCreateForm || showEditForm || isUpdating}
+                          className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                            showCreateForm || showEditForm || isUpdating
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-red-50 text-red-700 hover:bg-red-100 focus:ring-red-500'
+                          }`}
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Supprimer
                         </button>
                       </div>
                     </td>
