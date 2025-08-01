@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { hasRole } from "@/lib/auth-server-utils";
+import { getJudoCategoryDisplayName, getGenderDisplayName, getBeltColorDisplayName } from "@/lib/age-utils";
 
 export async function GET(req: NextRequest) {
   try {
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Convertir en format CSV
-    const csvHeader = "Prénom,Nom,Date de naissance,Email,Numéro de licence,Groupe(s)";
+    const csvHeader = "Prénom,Nom,Date de naissance,Âge,Sexe,Catégorie,Couleur de ceinture,Numéro de licence,Groupe(s)";
     const csvRows = [csvHeader];
 
     licensees.forEach(licensee => {
@@ -55,7 +56,10 @@ export async function GET(req: NextRequest) {
         `"${licensee.firstName}"`,
         `"${licensee.lastName}"`,
         dateOfBirth,
-        licensee.email ? `"${licensee.email}"` : '',
+        licensee.age.toString(),
+        `"${getGenderDisplayName(licensee.gender)}"`,
+        `"${getJudoCategoryDisplayName(licensee.category)}"`,
+        `"${getBeltColorDisplayName(licensee.beltColor)}"`,
         licensee.externalId || '',
         groupNames ? `"${groupNames}"` : ''
       ].join(',');

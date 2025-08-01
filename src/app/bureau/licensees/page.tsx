@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { withAuth } from "@/components/withAuth";
+import { getBeltColorDisplayName, getGenderDisplayName, type BeltColor, type Gender } from "@/lib/age-utils";
+import { MinimalColumnFilter as SimpleColumnFilter, type ColumnConfig } from "@/components/MinimalColumnFilter";
 
 interface Group {
   id: number;
@@ -15,6 +17,8 @@ interface Licensee {
   lastName: string;
   dateOfBirth: string;
   age: number;
+  gender: Gender;
+  beltColor: string;
   externalId: string | null;
   groups: Array<{
     group: Group;
@@ -30,12 +34,27 @@ function BureauLicenseesPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingLicensee, setEditingLicensee] = useState<Licensee | null>(null);
   const [showEditForm, setShowEditForm] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
+
+  // Column configuration for simple filtering
+  const columnConfig: ColumnConfig[] = [
+    { key: 'licensee', label: 'Licencié', defaultVisible: true },
+    { key: 'age', label: 'Âge', defaultVisible: true },
+    { key: 'gender', label: 'Sexe', defaultVisible: true },
+    { key: 'belt', label: 'Ceinture', defaultVisible: true },
+    { key: 'dateOfBirth', label: 'Date de naissance', defaultVisible: true },
+    { key: 'license', label: 'Licence', defaultVisible: false },
+    { key: 'groups', label: 'Groupes', defaultVisible: true },
+    { key: 'actions', label: 'Actions', defaultVisible: true }
+  ];
 
   // Form state
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     dateOfBirth: "",
+    gender: "MALE" as Gender,
+    beltColor: "BLANCHE" as BeltColor,
     externalId: "",
     selectedGroups: [] as number[]
   });
@@ -118,6 +137,8 @@ function BureauLicenseesPage() {
         firstName: "",
         lastName: "",
         dateOfBirth: "",
+        gender: "MALE" as Gender,
+        beltColor: "BLANCHE" as BeltColor,
         externalId: "",
         selectedGroups: []
       });
@@ -145,6 +166,8 @@ function BureauLicenseesPage() {
       firstName: licensee.firstName,
       lastName: licensee.lastName,
       dateOfBirth: licensee.dateOfBirth.split('T')[0], // Convert to YYYY-MM-DD format
+      gender: licensee.gender,
+      beltColor: licensee.beltColor as BeltColor,
       externalId: licensee.externalId || "",
       selectedGroups: licensee.groups.map(lg => lg.group.id)
     });
@@ -191,6 +214,8 @@ function BureauLicenseesPage() {
         firstName: "",
         lastName: "",
         dateOfBirth: "",
+        gender: "MALE" as Gender,
+        beltColor: "BLANCHE" as BeltColor,
         externalId: "",
         selectedGroups: []
       });
@@ -211,6 +236,8 @@ function BureauLicenseesPage() {
       firstName: "",
       lastName: "",
       dateOfBirth: "",
+      gender: "MALE",
+      beltColor: "BLANCHE",
       externalId: "",
       selectedGroups: []
     });
@@ -240,8 +267,8 @@ function BureauLicenseesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-6">
+      <div className="w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         <div className="mb-8">
           <div className="flex justify-between items-center">
             <div>
@@ -381,6 +408,49 @@ function BureauLicenseesPage() {
                         </p>
                       </div>
                     )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <span className="flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Sexe *
+                      </span>
+                    </label>
+                    <select
+                      required
+                      value={formData.gender}
+                      onChange={(e) => setFormData({ ...formData, gender: e.target.value as Gender })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                    >
+                      <option value="MALE">Masculin</option>
+                      <option value="FEMALE">Féminin</option>
+                      <option value="NEUTRAL">Neutre</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <span className="flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                        Couleur de ceinture
+                      </span>
+                    </label>
+                    <select
+                      value={formData.beltColor}
+                      onChange={(e) => setFormData({ ...formData, beltColor: e.target.value as BeltColor })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                    >
+                      {(['BLANCHE', 'JAUNE', 'ORANGE', 'VERTE', 'BLEUE', 'MARRON', 'DAN_1', 'DAN_2', 'DAN_3', 'DAN_4', 'DAN_5', 'DAN_6', 'DAN_7', 'DAN_8', 'DAN_9', 'DAN_10'] as BeltColor[]).map(color => (
+                        <option key={color} value={color}>
+                          {getBeltColorDisplayName(color)}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -572,6 +642,49 @@ function BureauLicenseesPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       <span className="flex items-center">
                         <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Sexe *
+                      </span>
+                    </label>
+                    <select
+                      required
+                      value={formData.gender}
+                      onChange={(e) => setFormData({ ...formData, gender: e.target.value as Gender })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    >
+                      <option value="MALE">Masculin</option>
+                      <option value="FEMALE">Féminin</option>
+                      <option value="NEUTRAL">Neutre</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <span className="flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                        Couleur de ceinture
+                      </span>
+                    </label>
+                    <select
+                      value={formData.beltColor}
+                      onChange={(e) => setFormData({ ...formData, beltColor: e.target.value as BeltColor })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    >
+                      {(['BLANCHE', 'JAUNE', 'ORANGE', 'VERTE', 'BLEUE', 'MARRON', 'DAN_1', 'DAN_2', 'DAN_3', 'DAN_4', 'DAN_5', 'DAN_6', 'DAN_7', 'DAN_8', 'DAN_9', 'DAN_10'] as BeltColor[]).map(color => (
+                        <option key={color} value={color}>
+                          {getBeltColorDisplayName(color)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <span className="flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         Numéro de licence
@@ -671,6 +784,15 @@ function BureauLicenseesPage() {
           </div>
         )}
 
+        {/* Filtre personnalisé */}
+        <div className="mb-6 flex justify-end">
+          <SimpleColumnFilter
+            columns={columnConfig}
+            onFilterChange={setVisibleColumns}
+            storageKey="licensees-filter-preferences"
+          />
+        </div>
+
         {/* Liste des licenciés */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
           <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
@@ -688,124 +810,195 @@ function BureauLicenseesPage() {
           </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="w-full divide-y divide-gray-200 min-w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  <div className="flex items-center">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    Licencié
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  <div className="flex items-center">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a1 1 0 011-1h6a1 1 0 011 1v4m-9 8h10M5 12h14m-7 7V5" />
-                    </svg>
-                    Âge
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  <div className="flex items-center">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Licence
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  <div className="flex items-center">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    Groupes
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  <div className="flex items-center">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                    </svg>
-                    Actions
-                  </div>
-                </th>
+                {visibleColumns.includes('licensee') && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-80">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Licencié
+                    </div>
+                  </th>
+                )}
+                {visibleColumns.includes('age') && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-16">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a1 1 0 011-1h6a1 1 0 011 1v4m-9 8h10M5 12h14m-7 7V5" />
+                      </svg>
+                      Âge
+                    </div>
+                  </th>
+                )}
+                {visibleColumns.includes('dateOfBirth') && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a1 1 0 011-1h6a1 1 0 011 1v4m-9 8h10M5 12h14m-7 7V5" />
+                      </svg>
+                      Date de naissance
+                    </div>
+                  </th>
+                )}
+                {visibleColumns.includes('gender') && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-20">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Sexe
+                    </div>
+                  </th>
+                )}
+                {visibleColumns.includes('belt') && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-24">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                      </svg>
+                      Ceinture
+                    </div>
+                  </th>
+                )}
+                {visibleColumns.includes('license') && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-24">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Licence
+                    </div>
+                  </th>
+                )}
+                {visibleColumns.includes('groups') && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-64">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      Groupes
+                    </div>
+                  </th>
+                )}
+                {visibleColumns.includes('actions') && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                      </svg>
+                      Actions
+                    </div>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {licensees.map((licensee) => (
                 <tr key={licensee.id} className="hover:bg-green-50 transition-colors duration-150">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center">
-                          <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
+                  {visibleColumns.includes('licensee') && (
+                    <td className="px-4 py-3">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10">
+                          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center">
+                            <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-semibold text-gray-900">
+                            {licensee.firstName} {licensee.lastName}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Né(e) le {formatDate(licensee.dateOfBirth)}
+                          </div>
                         </div>
                       </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-semibold text-gray-900">
-                          {licensee.firstName} {licensee.lastName}
+                    </td>
+                  )}
+                  {visibleColumns.includes('age') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="text-sm font-medium text-gray-900">
+                          {licensee.age}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          Né(e) le {formatDate(licensee.dateOfBirth)}
+                        <div className="text-sm text-gray-500 ml-1">
+                          an{licensee.age > 1 ? 's' : ''}
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="text-sm font-medium text-gray-900">
-                        {licensee.age}
+                    </td>
+                  )}
+                  {visibleColumns.includes('dateOfBirth') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {formatDate(licensee.dateOfBirth)}
                       </div>
-                      <div className="text-sm text-gray-500 ml-1">
-                        an{licensee.age > 1 ? 's' : ''}
+                    </td>
+                  )}
+                  {visibleColumns.includes('gender') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-100 to-indigo-200 text-blue-800 border border-blue-300">
+                        {getGenderDisplayName(licensee.gender)}
+                      </span>
+                    </td>
+                  )}
+                  {visibleColumns.includes('belt') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-amber-100 to-yellow-160 text-amber-800 border border-amber-300">
+                        {getBeltColorDisplayName(licensee.beltColor as BeltColor)}
+                      </span>
+                    </td>
+                  )}
+                  {visibleColumns.includes('license') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {licensee.externalId ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {licensee.externalId}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {licensee.externalId ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          {licensee.externalId}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {licensee.groups.map(({ group }) => (
-                        <span
-                          key={group.id}
-                          className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-200"
+                    </td>
+                  )}
+                  {visibleColumns.includes('groups') && (
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {licensee.groups.map(({ group }) => (
+                          <span
+                            key={group.id}
+                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-200"
+                          >
+                            {group.name}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                  )}
+                  {visibleColumns.includes('actions') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleEditLicensee(licensee)}
+                          disabled={showCreateForm}
+                          className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                            showCreateForm
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-green-50 text-green-700 hover:bg-green-100 focus:ring-green-500'
+                          }`}
                         >
-                          {group.name}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleEditLicensee(licensee)}
-                        disabled={showCreateForm}
-                        className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                          showCreateForm
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-green-50 text-green-700 hover:bg-green-100 focus:ring-green-500'
-                        }`}
-                      >
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        Modifier
-                      </button>
-                    </div>
-                  </td>
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Modifier
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

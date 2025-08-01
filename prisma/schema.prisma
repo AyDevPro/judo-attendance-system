@@ -78,13 +78,51 @@ model Group {
   courses      CourseGroup[]
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  NEUTRAL
+}
+
+enum JudoCategory {
+  PRE_POUSSIN      // 6-7 ans (2018-2019 pour 2025-2026)
+  POUSSIN          // 8-9 ans (2016-2017 pour 2025-2026)
+  BENJAMIN         // 10-11 ans (2014-2015 pour 2025-2026)
+  MINIME           // 12-13 ans (2012-2013 pour 2025-2026)
+  CADET            // 14-16 ans (2009-2010-2011 pour 2025-2026)
+  JUNIOR           // 17-19 ans (2006-2007-2008 pour 2025-2026)
+  SENIOR           // 20+ ans (2005 et avant pour 2025-2026)
+}
+
+enum BeltColor {
+  BLANCHE
+  JAUNE
+  ORANGE
+  VERTE
+  BLEUE
+  MARRON
+  DAN_1
+  DAN_2
+  DAN_3
+  DAN_4
+  DAN_5
+  DAN_6
+  DAN_7
+  DAN_8
+  DAN_9
+  DAN_10
+}
+
 model Licensee {
   id           Int                @id @default(autoincrement())
   firstName    String
   lastName     String
   dateOfBirth  DateTime
   age          Int                // calculé automatiquement
-  externalId   String?            @unique
+  gender       Gender
+  category     JudoCategory       // calculée automatiquement selon l'âge
+  beltColor    BeltColor          @default(BLANCHE) // couleur de ceinture
+  externalId   String?            @unique // numéro de licence
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
   

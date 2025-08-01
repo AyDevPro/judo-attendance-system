@@ -8,7 +8,9 @@ interface CSVLicensee {
   firstName: string;
   lastName: string;
   dateOfBirth: string;
+  gender: 'M' | 'F' | 'N' | 'MALE' | 'FEMALE' | 'NEUTRAL';
   email?: string;
+  beltColor?: string;
   externalId?: string;
   groups: string[];
 }
@@ -68,33 +70,46 @@ function LicenseesImportPage() {
             const firstName = row["Prénom"]?.trim();
             const lastName = row["Nom"]?.trim();
             const dateOfBirth = row["Date de naissance"]?.trim();
+            const gender = row["Sexe"]?.trim();
             const email = row["Email"]?.trim() || undefined;
+            const beltColor = row["Couleur de ceinture"]?.trim() || undefined;
             const externalId = row["Numéro de licence"]?.trim() || undefined;
             const groupsStr = row["Groupe(s)"]?.trim() || "";
 
             // Validation des champs obligatoires
-            if (!firstName || !lastName || !dateOfBirth) {
-              errors.push(`Ligne ${index + 2}: Prénom, nom et date de naissance sont obligatoires`);
+            if (!firstName || !lastName || !dateOfBirth || !gender) {
+              errors.push(`Ligne ${index + 2}: Prénom, nom, date de naissance et sexe sont obligatoires`);
               return;
             }
 
+            // Normaliser et valider la date
+            let normalizedDate = dateOfBirth;
+            
+            // Gérer les formats DD/MM/YYYY ou DD-MM-YYYY
+            if (dateOfBirth.match(/^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/)) {
+              const parts = dateOfBirth.split(/[\/\-]/);
+              normalizedDate = `${parts[2]}-${parts[1]}-${parts[0]}`; // Convertir en YYYY-MM-DD
+            }
+            
             // Validation de la date
-            if (isNaN(Date.parse(dateOfBirth))) {
-              errors.push(`Ligne ${index + 2}: Date de naissance invalide (${dateOfBirth})`);
+            if (isNaN(Date.parse(normalizedDate))) {
+              errors.push(`Ligne ${index + 2}: Date de naissance invalide (${dateOfBirth}). Utilisez le format DD/MM/YYYY ou YYYY-MM-DD`);
               return;
             }
 
             // Parser les groupes (séparés par virgule ou point-virgule)
             const groups = groupsStr
               .split(/[,;]/)
-              .map(g => g.trim())
-              .filter(g => g.length > 0);
+              .map((g: string) => g.trim())
+              .filter((g: string) => g.length > 0);
 
             licensees.push({
               firstName,
               lastName,
-              dateOfBirth,
+              dateOfBirth: normalizedDate,
+              gender,
               email,
+              beltColor,
               externalId,
               groups
             });
@@ -157,10 +172,10 @@ function LicenseesImportPage() {
   };
 
   const downloadTemplate = () => {
-    const template = `Prénom,Nom,Date de naissance,Email,Numéro de licence,Groupe(s)
-Jean,Dupont,2008-05-14,jean.dupont@mail.com,123456,J3
-Marie,Leroy,2012-09-22,marie.leroy@mail.com,234567,J2
-Paul,Martin,2015-01-03,,345678,PRIMA`;
+    const template = `Prénom,Nom,Date de naissance,Sexe,Email,Couleur de ceinture,Numéro de licence,Groupe(s)
+Jean,Dupont,2008-05-14,M,jean.dupont@mail.com,Verte,123456,J3
+Marie,Leroy,2012-09-22,F,marie.leroy@mail.com,3e Dan,234567,J2
+Paul,Martin,2015-01-03,N,,Blanche,345678,PRIMA`;
 
     const blob = new Blob([template], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
@@ -170,8 +185,8 @@ Paul,Martin,2015-01-03,,345678,PRIMA`;
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
@@ -217,8 +232,10 @@ Paul,Martin,2015-01-03,,345678,PRIMA`;
             <ul className="list-disc list-inside ml-4 space-y-1">
               <li><strong>Prénom</strong> (obligatoire)</li>
               <li><strong>Nom</strong> (obligatoire)</li>
-              <li><strong>Date de naissance</strong> (obligatoire, format YYYY-MM-DD)</li>
+              <li><strong>Date de naissance</strong> (obligatoire, format DD/MM/YYYY ou YYYY-MM-DD)</li>
+              <li><strong>Sexe</strong> (obligatoire, M/F/N ou MALE/FEMALE/NEUTRAL)</li>
               <li><strong>Email</strong> (optionnel)</li>
+              <li><strong>Couleur de ceinture</strong> (optionnel, ex: Blanche, Jaune, 1er Dan, 2e Dan...)</li>
               <li><strong>Numéro de licence</strong> (optionnel)</li>
               <li><strong>Groupe(s)</strong> (optionnel, séparer par virgule si plusieurs)</li>
             </ul>
@@ -308,7 +325,13 @@ Paul,Martin,2015-01-03,,345678,PRIMA`;
                         Date de naissance
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Sexe
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Email
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Ceinture
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Licence
@@ -331,7 +354,14 @@ Paul,Martin,2015-01-03,,345678,PRIMA`;
                           {new Date(licensee.dateOfBirth).toLocaleDateString('fr-FR')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {licensee.gender === 'M' || licensee.gender === 'MALE' ? 'Masculin' : 
+                           licensee.gender === 'F' || licensee.gender === 'FEMALE' ? 'Féminin' : 'Neutre'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {licensee.email || '—'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {licensee.beltColor || '—'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {licensee.externalId || '—'}

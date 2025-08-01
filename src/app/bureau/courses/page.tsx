@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { withAuth } from "@/components/withAuth";
 import { hasRole } from "@/lib/auth-utils";
 import { useAuth } from "@/lib/auth-utils";
+import { SimpleColumnFilter, type ColumnConfig } from "@/components/SimpleColumnFilter";
 
 interface Teacher {
   id: number;
@@ -53,6 +54,17 @@ function BureauCoursesPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
+
+  // Configuration des colonnes pour le filtre
+  const columnConfig: ColumnConfig[] = [
+    { key: 'course', label: 'Cours', defaultVisible: true },
+    { key: 'schedule', label: 'Horaires', defaultVisible: true },
+    { key: 'teachers', label: 'Professeurs', defaultVisible: true },
+    { key: 'groups', label: 'Groupes', defaultVisible: true },
+    { key: 'students', label: 'Étudiants', defaultVisible: false },
+    { key: 'actions', label: 'Actions', defaultVisible: true }
+  ];
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [showEditForm, setShowEditForm] = useState(false);
@@ -292,8 +304,8 @@ function BureauCoursesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-6">
+      <div className="w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         <div className="mb-8">
           <div className="flex justify-between items-center">
             <div>
@@ -787,6 +799,15 @@ function BureauCoursesPage() {
           </form>
         </div>
       )}
+
+        {/* Filtre personnalisé */}
+        <div className="mb-6 flex justify-end">
+          <SimpleColumnFilter
+            columns={columnConfig}
+            onFilterChange={setVisibleColumns}
+            storageKey="courses-filter-preferences"
+          />
+        </div>
 
         {/* Liste des cours */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">

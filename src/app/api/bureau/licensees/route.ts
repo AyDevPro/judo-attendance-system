@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { calculateAge, calculateJudoCategory, type Gender, type JudoCategory, type BeltColor } from "@/lib/age-utils";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -46,13 +47,18 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { firstName, lastName, dateOfBirth, age, externalId, groupIds } = await req.json();
+    const { firstName, lastName, dateOfBirth, gender, age, beltColor, externalId, groupIds } = await req.json();
 
-    if (!firstName || !lastName || !dateOfBirth || !groupIds || groupIds.length === 0) {
+    if (!firstName || !lastName || !dateOfBirth || !gender || !groupIds || groupIds.length === 0) {
       return NextResponse.json({ 
-        error: "firstName, lastName, dateOfBirth et au moins un groupe sont requis" 
+        error: "firstName, lastName, dateOfBirth, gender et au moins un groupe sont requis" 
       }, { status: 400 });
     }
+
+    // Calculer l'âge et la catégorie si non fournis
+    const birthDate = new Date(dateOfBirth);
+    const calculatedAge = age || calculateAge(birthDate);
+    const calculatedCategory = calculateJudoCategory(birthDate);
 
     // Check if external ID is unique if provided
     if (externalId) {
@@ -74,8 +80,11 @@ export async function POST(req: NextRequest) {
         data: {
           firstName,
           lastName,
-          dateOfBirth: new Date(dateOfBirth),
-          age,
+          dateOfBirth: birthDate,
+          age: calculatedAge,
+          gender: gender as Gender,
+          category: calculatedCategory,
+          beltColor: (beltColor as BeltColor) || 'BLANCHE',
           externalId: externalId || null
         }
       });
@@ -121,13 +130,18 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
-    const { id, firstName, lastName, dateOfBirth, age, externalId, groupIds } = await req.json();
+    const { id, firstName, lastName, dateOfBirth, gender, age, beltColor, externalId, groupIds } = await req.json();
 
-    if (!id || !firstName || !lastName || !dateOfBirth || !groupIds || groupIds.length === 0) {
+    if (!id || !firstName || !lastName || !dateOfBirth || !gender || !groupIds || groupIds.length === 0) {
       return NextResponse.json({ 
-        error: "ID, firstName, lastName, dateOfBirth et au moins un groupe sont requis" 
+        error: "ID, firstName, lastName, dateOfBirth, gender et au moins un groupe sont requis" 
       }, { status: 400 });
     }
+
+    // Calculer l'âge et la catégorie si non fournis
+    const birthDate = new Date(dateOfBirth);
+    const calculatedAge = age || calculateAge(birthDate);
+    const calculatedCategory = calculateJudoCategory(birthDate);
 
     // Vérifier que le licencié existe
     const existingLicensee = await prisma.licensee.findUnique({
@@ -159,8 +173,11 @@ export async function PUT(req: NextRequest) {
         data: {
           firstName,
           lastName,
-          dateOfBirth: new Date(dateOfBirth),
-          age,
+          dateOfBirth: birthDate,
+          age: calculatedAge,
+          gender: gender as Gender,
+          category: calculatedCategory,
+          beltColor: (beltColor as BeltColor) || 'BLANCHE',
           externalId: externalId || null
         }
       });

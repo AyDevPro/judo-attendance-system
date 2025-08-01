@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Database Management Commands
 - `docker exec attendance-db psql -U nextjs_app -d nextjs_db -c "SELECT * FROM \"User\";"` - Query database directly
 - `docker exec attendance-db psql -U nextjs_app -d nextjs_db -c "UPDATE \"User\" SET role = 'ADMIN' WHERE email = 'admin@email.com';"` - Update user roles
-- `docker exec attendance-web node seed.js` - Seed database with judo groups (Prima, J2, J3, J4, J5, etc.)
+- `docker exec attendance-web node prisma/seed.js` - Seed database manually (groupes et utilisateurs de test)
 
 ### Local Development (Alternative)
 - `npm run dev` - Start development server (requires local database setup)
@@ -129,17 +129,27 @@ This is a **role-based judo attendance management system** built with Next.js 15
 - **Database**: Persistent PostgreSQL data with volume
 
 ### Test Accounts
-After running migrations, create test users via API:
+Automatically created during development startup:
 - **admin@email.com** (password: password123) - ADMIN role
 - **bureau@email.com** (password: password123) - BUREAU role  
 - **prof1@email.com** (password: password123) - TEACHER role
 
+### Development Seed Data
+The system automatically creates on Docker startup (dev only):
+- **11 judo groups**: PRIMA, J2, J3, J4, J5 Judo/Jujitsu, Ne-waza, Taiso, Self-Defense, Yoga, etc.
+- **3 test users** with correct roles and passwords
+- **3 sample licensees** with different belt colors and group assignments
+
 ### Development Workflow
-1. `docker compose up -d --build` - Start with hot reload
-2. Apply migrations: `docker exec attendance-web npx prisma migrate dev --name init`
-3. Create test users via sign-up API
-4. Update roles via database: `docker exec attendance-db psql -U nextjs_app -d nextjs_db -c "UPDATE \"User\" SET role = 'ADMIN' WHERE email = 'admin@email.com';"`
-5. Access application at http://localhost:3000
+1. `docker compose up -d --build` - Start with hot reload and auto-seed
+2. Access application at http://localhost:3000
+3. Login with test accounts (see above)
+4. All groups, users, and sample data are automatically created
+
+### Manual Operations (if needed)
+- `docker exec attendance-web npx prisma migrate dev --name <name>` - Create new migration
+- `docker exec attendance-web node prisma/seed.js` - Re-run seed manually
+- `docker compose down -v` - Reset database (will auto-seed on next startup)
 
 ### Design System & UI/UX
 

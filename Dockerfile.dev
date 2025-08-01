@@ -2,11 +2,12 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including netcat for database wait
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     ca-certificates \
     libssl3 \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
@@ -21,8 +22,11 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
+# Make script executable
+RUN chmod +x scripts/dev-init.sh
+
 # Expose port
 EXPOSE 3000
 
-# Run in development mode
-CMD ["npm", "run", "dev"]
+# Run initialization script in development mode
+CMD ["./scripts/dev-init.sh"]

@@ -16,10 +16,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cour
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
   
-  // Get teacher info from User
-  const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } });
-  if (fullUser.role !== "ADMIN" && !(fullUser.role === "TEACHER" && teacher && course.teacherId === teacher.id)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // Check permissions: ADMIN or assigned TEACHER
+  if (fullUser.role !== "ADMIN" && fullUser.role !== "BUREAU") {
+    if (fullUser.role === "TEACHER") {
+      // Get teacher info from User
+      const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } });
+      if (!teacher) {
+        return NextResponse.json({ error: "Teacher not found" }, { status: 404 });
+      }
+      
+      // Check if this teacher is assigned to this course
+      const courseTeacher = await prisma.courseTeacher.findFirst({
+        where: {
+          courseId: parseInt(courseId),
+          teacherId: teacher.id
+        }
+      });
+      
+      if (!courseTeacher) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
   
   // Get licensees assigned to the course's groups

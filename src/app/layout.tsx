@@ -9,7 +9,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="fr">
       <body className="min-h-screen bg-gray-50">
         <Navigation />
-        <main className="max-w-5xl mx-auto p-6">{children}</main>
+        <main className="w-full mx-auto p-4 sm:p-6">{children}</main>
       </body>
     </html>
   );
