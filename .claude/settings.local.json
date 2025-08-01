@@ -26,7 +26,8 @@
       "Bash(open:*)",
       "Bash(docker:*)",
       "Bash(git commit:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

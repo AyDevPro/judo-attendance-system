@@ -37,16 +37,16 @@ function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen flex items-start sm:items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 pt-8 pb-2 sm:py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-4 sm:space-y-8">
         {/* Header */}
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-            <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+            <svg className="h-6 w-6 sm:h-8 sm:w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">
+          <h2 className="mt-3 sm:mt-6 text-2xl sm:text-3xl font-bold text-gray-900">
             Connexion
           </h2>
           <p className="mt-2 text-sm text-gray-600">
@@ -68,8 +68,8 @@ function SignInPage() {
 
         {/* Form */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="px-8 py-6">
-            <form onSubmit={onSubmit} className="space-y-6">
+          <div className="px-4 sm:px-8 py-3 sm:py-6">
+            <form onSubmit={onSubmit} className="space-y-4 sm:space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <span className="flex items-center">
@@ -136,7 +136,7 @@ function SignInPage() {
           </div>
 
           {/* Footer */}
-          <div className="px-8 py-4 bg-gray-50 border-t border-gray-200">
+          <div className="px-4 sm:px-8 py-2 sm:py-4 bg-gray-50 border-t border-gray-200">
             <p className="text-center text-sm text-gray-600">
               Pas de compte ?{' '}
               <a 

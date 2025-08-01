@@ -14,8 +14,11 @@ export const auth = betterAuth({
     minPasswordLength: 8,
     requireEmailVerification: false,
   },
-  // local dev : pas de proxy/https strict
-  cookies: { secure: false },
+  trustedOrigins: ["http://localhost:3000"],
+  cookies: { 
+    secure: false,
+    sameSite: "lax",
+  },
   plugins: [nextCookies()],
 });
 export type Session = typeof auth.$Infer.Session;
