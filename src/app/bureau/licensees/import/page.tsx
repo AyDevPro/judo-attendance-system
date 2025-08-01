@@ -2,6 +2,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { withAuth } from "@/components/withAuth";
+import { useToast } from "@/components/ToastProvider";
 import Papa from "papaparse";
 
 interface CSVLicensee {
@@ -32,6 +33,7 @@ interface ImportResult {
 }
 
 function LicenseesImportPage() {
+  const { showSuccess, showError, showWarning } = useToast();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -47,7 +49,7 @@ function LicenseesImportPage() {
       setFile(selectedFile);
       parseCSVFile(selectedFile);
     } else {
-      alert("Veuillez sélectionner un fichier CSV valide.");
+      showWarning("Fichier invalide", "Veuillez sélectionner un fichier CSV valide.");
     }
   };
 
@@ -124,7 +126,7 @@ function LicenseesImportPage() {
       },
       error: (error) => {
         console.error("Erreur de parsing CSV:", error);
-        alert("Erreur lors de la lecture du fichier CSV.");
+        showError("Erreur de lecture", "Erreur lors de la lecture du fichier CSV.");
         setIsParsingFile(false);
       }
     });
@@ -156,7 +158,7 @@ function LicenseesImportPage() {
       setImportResult(result);
 
     } catch (error: any) {
-      alert("Erreur lors de l'import: " + error.message);
+      showError("Erreur d'import", error.message);
     } finally {
       setIsImporting(false);
     }

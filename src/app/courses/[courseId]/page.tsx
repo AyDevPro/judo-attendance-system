@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { withAuth } from "@/components/withAuth";
+import { useToast } from "@/components/ToastProvider";
 
 interface Student {
   id: number;
@@ -40,6 +41,7 @@ interface SessionHistory {
 type AttendanceStatus = "PRESENT" | "JUSTIFIED" | null;
 
 function CourseDetailPage() {
+  const { showSuccess, showError } = useToast();
   const params = useParams<{ courseId: string }>();
   const router = useRouter();
   const courseId = params.courseId;
@@ -174,10 +176,11 @@ function CourseDetailPage() {
         throw new Error(errorData.error || "Failed to save attendance");
       }
 
-      alert("Présences enregistrées avec succès !");
+      showSuccess("Présences enregistrées", "Les présences ont été enregistrées avec succès !");
       // Reload data to reflect changes
       await loadAttendanceData();
     } catch (error: any) {
+      showError("Erreur d'enregistrement", error.message);
       setError("Erreur: " + error.message);
     } finally {
       setSaving(false);

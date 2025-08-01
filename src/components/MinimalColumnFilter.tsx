@@ -10,11 +10,13 @@ export interface ColumnConfig {
 interface MinimalColumnFilterProps {
   columns: ColumnConfig[];
   onFilterChange: (visibleColumns: string[]) => void;
+  storageKey?: string;
 }
 
 export function MinimalColumnFilter({ 
   columns, 
-  onFilterChange
+  onFilterChange,
+  storageKey
 }: MinimalColumnFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
   

@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { withAuth } from "@/components/withAuth";
+import { useToast } from "@/components/ToastProvider";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 interface Student {
   id: number;
@@ -24,6 +26,8 @@ interface Exclusion {
 }
 
 function CourseStudentsPage() {
+  const { showSuccess, showError } = useToast();
+  const { confirm } = useConfirm();
   const params = useParams<{ courseId: string }>();
   const router = useRouter();
   const courseId = params.courseId;
@@ -117,17 +121,19 @@ function CourseStudentsPage() {
       setSelectedStudent(null);
       setExclusionReason("");
       
-      alert(`${selectedStudent.firstName} ${selectedStudent.lastName} a été exclu(e) du cours.`);
+      showSuccess("Licencié exclu", `${selectedStudent.firstName} ${selectedStudent.lastName} a été exclu(e) du cours.`);
     } catch (error: any) {
-      alert("Erreur: " + error.message);
+      showError("Erreur d'exclusion", error.message);
     }
   };
 
   const handleReintegrateStudent = async (exclusion: Exclusion) => {
     const student = exclusion.licensee;
-    const confirmReintegration = confirm(
-      `Êtes-vous sûr de vouloir réintégrer ${student.firstName} ${student.lastName} dans ce cours ?`
-    );
+    const confirmReintegration = await confirm({
+      title: "Réintégrer le licencié",
+      message: `Êtes-vous sûr de vouloir réintégrer ${student.firstName} ${student.lastName} dans ce cours ?`,
+      type: "info"
+    });
 
     if (!confirmReintegration) return;
 
@@ -144,9 +150,9 @@ function CourseStudentsPage() {
       // Refresh data
       await loadData();
       
-      alert(`${student.firstName} ${student.lastName} a été réintégré(e) dans le cours.`);
+      showSuccess("Licencié réintégré", `${student.firstName} ${student.lastName} a été réintégré(e) dans le cours.`);
     } catch (error: any) {
-      alert("Erreur: " + error.message);
+      showError("Erreur de réintégration", error.message);
     }
   };
 

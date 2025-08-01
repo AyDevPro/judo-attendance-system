@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { withAdminAuth } from "@/components/withAuth";
 import { useAuth } from "@/lib/auth-utils";
+import { useToast } from "@/components/ToastProvider";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 interface User {
   id: string;
@@ -19,6 +21,8 @@ interface User {
 
 function AdminUsersPage() {
   const { user: currentUser } = useAuth(["ADMIN"]);
+  const { showSuccess, showError } = useToast();
+  const { confirm } = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,15 +65,21 @@ function AdminUsersPage() {
 
       const updatedUser = await response.json();
       setUsers(users.map(user => user.id === userId ? { ...user, ...updatedUser } : user));
+      showSuccess("Utilisateur modifié", "Les informations ont été mises à jour avec succès");
     } catch (error: any) {
-      alert("Erreur: " + error.message);
+      showError("Erreur", "Impossible de modifier l'utilisateur: " + error.message);
     }
   };
 
   const deleteUser = async (userId: string, userEmail: string) => {
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur ${userEmail} ? Cette action est irréversible.`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Supprimer l'utilisateur",
+      message: `Êtes-vous sûr de vouloir supprimer l'utilisateur ${userEmail} ? Cette action est irréversible.`,
+      confirmText: "Supprimer",
+      type: "danger"
+    });
+
+    if (!confirmed) return;
 
     try {
       const response = await fetch(`/api/admin/users/${userId}`, {
@@ -82,8 +92,9 @@ function AdminUsersPage() {
       }
 
       setUsers(users.filter(user => user.id !== userId));
+      showSuccess("Utilisateur supprimé", `L'utilisateur ${userEmail} a été supprimé avec succès`);
     } catch (error: any) {
-      alert("Erreur: " + error.message);
+      showError("Erreur", "Impossible de supprimer l'utilisateur: " + error.message);
     }
   };
 

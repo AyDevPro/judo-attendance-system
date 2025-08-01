@@ -4,6 +4,7 @@ import { withAuth } from "@/components/withAuth";
 import { hasRole } from "@/lib/auth-utils";
 import { useAuth } from "@/lib/auth-utils";
 import { SimpleColumnFilter, type ColumnConfig } from "@/components/SimpleColumnFilter";
+import { useToast } from "@/components/ToastProvider";
 
 interface Teacher {
   id: number;
@@ -48,6 +49,7 @@ interface Course {
 }
 
 function BureauCoursesPage() {
+  const { showSuccess, showError, showWarning } = useToast();
   const { user } = useAuth(["ADMIN", "BUREAU"]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -140,12 +142,12 @@ function BureauCoursesPage() {
     e.preventDefault();
     
     if (formData.selectedGroups.length === 0) {
-      alert("Veuillez sélectionner au moins un groupe");
+      showWarning("Sélection requise", "Veuillez sélectionner au moins un groupe");
       return;
     }
     
     if (formData.selectedTeachers.length === 0) {
-      alert("Veuillez sélectionner au moins un professeur");
+      showWarning("Sélection requise", "Veuillez sélectionner au moins un professeur");
       return;
     }
     
@@ -177,9 +179,9 @@ function BureauCoursesPage() {
       setShowCreateForm(false);
       await fetchCourses();
       
-      alert("Cours créé avec succès !");
+      showSuccess("Cours créé", "Le cours a été créé avec succès !");
     } catch (error: any) {
-      alert("Erreur: " + error.message);
+      showError("Erreur de création", error.message);
     }
   };
 
@@ -221,12 +223,12 @@ function BureauCoursesPage() {
     if (!editingCourse) return;
     
     if (formData.selectedGroups.length === 0) {
-      alert("Veuillez sélectionner au moins un groupe");
+      showWarning("Sélection requise", "Veuillez sélectionner au moins un groupe");
       return;
     }
     
     if (formData.selectedTeachers.length === 0) {
-      alert("Veuillez sélectionner au moins un professeur");
+      showWarning("Sélection requise", "Veuillez sélectionner au moins un professeur");
       return;
     }
     
@@ -260,9 +262,9 @@ function BureauCoursesPage() {
       setEditingCourse(null);
       await fetchCourses();
       
-      alert("Cours modifié avec succès !");
+      showSuccess("Cours modifié", "Les modifications ont été enregistrées avec succès !");
     } catch (error: any) {
-      alert("Erreur: " + error.message);
+      showError("Erreur de modification", error.message);
     }
   };
 
