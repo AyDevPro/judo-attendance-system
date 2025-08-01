@@ -4,7 +4,7 @@ import Navigation from "@/components/Navigation";
 import { ToastProvider } from "@/components/ToastProvider";
 import { ConfirmProvider } from "@/components/ConfirmDialog";
 
-export const metadata = { title: "Attendance App", description: "Next.js + Better Auth + Prisma" };
+export const metadata = { title: "JudoPresence", description: "Système de Gestion des Présences pour club de judo" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

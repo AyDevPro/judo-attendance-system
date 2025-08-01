@@ -25,7 +25,8 @@
       "Bash(node:*)",
       "Bash(open:*)",
       "Bash(docker:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(cd:*)"
     ],
     "deny": []
   }

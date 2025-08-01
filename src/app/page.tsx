@@ -33,15 +33,14 @@ export default function HomePage() {
 
   // Page d'accueil pour les utilisateurs non connectés
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="relative min-h-screen">
-        {/* Background decorative elements */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-32 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-purple-600/20 rounded-full blur-3xl"></div>
-          <div className="absolute -bottom-40 -left-32 w-80 h-80 bg-gradient-to-tr from-indigo-400/20 to-blue-600/20 rounded-full blur-3xl"></div>
-        </div>
+    <div className="fixed inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 overflow-auto">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-32 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-purple-600/20 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-40 -left-32 w-80 h-80 bg-gradient-to-tr from-indigo-400/20 to-blue-600/20 rounded-full blur-3xl"></div>
+      </div>
 
-        <div className="relative min-h-screen flex flex-col justify-center px-6 py-12">
+      <div className="relative min-h-screen flex flex-col justify-center px-6 py-12 pt-20">
           <div className="max-w-6xl mx-auto text-center space-y-12">
             {/* Hero Section */}
             <div className="space-y-6">
@@ -150,7 +149,6 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }
