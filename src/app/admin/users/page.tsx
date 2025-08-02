@@ -10,7 +10,7 @@ interface User {
   id: string;
   email: string;
   name: string | null;
-  role: "ADMIN" | "BUREAU" | "TEACHER";
+  role: "ADMIN" | "BUREAU" | "TEACHER" | "PENDING";
   blocked: boolean;
   emailVerified: boolean;
   createdAt: string;
@@ -31,7 +31,7 @@ function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "blocked" | "active">("all");
-  const [roleFilter, setRoleFilter] = useState<"all" | "ADMIN" | "BUREAU" | "TEACHER">("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | "ADMIN" | "BUREAU" | "TEACHER" | "PENDING">("all");
 
   useEffect(() => {
     fetchUsers();
@@ -107,6 +107,7 @@ function AdminUsersPage() {
       case "ADMIN": return "Administrateur";
       case "BUREAU": return "Bureau";
       case "TEACHER": return "Enseignant";
+      case "PENDING": return "En attente";
       default: return role;
     }
   };
@@ -116,6 +117,7 @@ function AdminUsersPage() {
       case "ADMIN": return "bg-purple-100 text-purple-800 border-purple-200";
       case "BUREAU": return "bg-green-100 text-green-800 border-green-200";
       case "TEACHER": return "bg-blue-100 text-blue-800 border-blue-200";
+      case "PENDING": return "bg-yellow-100 text-yellow-800 border-yellow-200";
       default: return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
@@ -213,6 +215,7 @@ function AdminUsersPage() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               >
                 <option value="all">Tous les rôles</option>
+                <option value="PENDING">En attente</option>
                 <option value="ADMIN">Administrateur</option>
                 <option value="BUREAU">Bureau</option>
                 <option value="TEACHER">Enseignant</option>
@@ -301,6 +304,7 @@ function AdminUsersPage() {
                         onChange={(e) => updateUser(user.id, { role: e.target.value as any })}
                         className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border-0 cursor-pointer hover:shadow-sm transition-all duration-200 ${getRoleBadgeColor(user.role)}`}
                       >
+                        <option value="PENDING">En attente</option>
                         <option value="ADMIN">Administrateur</option>
                         <option value="BUREAU">Bureau</option>
                         <option value="TEACHER">Enseignant</option>

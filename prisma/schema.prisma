@@ -15,7 +15,7 @@ model User {
   email         String     @unique
   name          String?
   image         String?
-  role          Role       @default(TEACHER)
+  role          Role       @default(PENDING)
   blocked       Boolean    @default(false)
   emailVerified Boolean   @default(false)
   createdAt     DateTime   @default(now())
@@ -40,6 +40,7 @@ enum Role {
   ADMIN
   BUREAU
   TEACHER
+  PENDING
 }
 
 enum GroupType {

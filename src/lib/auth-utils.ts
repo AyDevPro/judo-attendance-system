@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 
-export type Role = "ADMIN" | "BUREAU" | "TEACHER";
+export type Role = "ADMIN" | "BUREAU" | "TEACHER" | "PENDING";
 
 export interface AuthUser {
   id: string;
@@ -19,6 +19,7 @@ export function useAuth(requiredRoles?: Role[]) {
   const router = useRouter();
   const [fullUser, setFullUser] = useState<AuthUser | null>(null);
   const [userLoading, setUserLoading] = useState(false);
+  const [lastFetch, setLastFetch] = useState<number>(0);
 
   const baseUser = session?.user;
   const isAuthenticated = !!session && !!baseUser;
@@ -30,7 +31,100 @@ export function useAuth(requiredRoles?: Role[]) {
     }
   }, [isAuthenticated, fullUser]);
 
+  // Fonction pour forcer le rafraîchissement des données utilisateur
+  const refreshUserData = () => {
+    setFullUser(null);
+    setLastFetch(0);
+  };
+
   // Récupérer les données complètes de l'utilisateur depuis la base de données
+  useEffect(() => {
+    if (isAuthenticated && baseUser && !fullUser && !userLoading) {
+      setUserLoading(true);
+      fetch(`/api/user/me`)
+        .then(res => res.json())
+        .then(userData => {
+          setFullUser({
+            id: userData.id,
+            email: userData.email,
+            name: userData.name || baseUser.name,
+            role: userData.role,
+            blocked: userData.blocked
+          });
+          setLastFetch(Date.now());
+        })
+        .catch(error => {
+          console.error('Error fetching user data:', error);
+          // Fallback vers les données de session
+          setFullUser({
+            id: baseUser.id,
+            email: baseUser.email,
+            name: baseUser.name,
+            role: undefined,
+            blocked: false
+          });
+          setLastFetch(Date.now());
+        })
+        .finally(() => setUserLoading(false));
+    }
+  }, [isAuthenticated, baseUser, fullUser, userLoading]);
+
+  const user = fullUser;
+  const hasRequiredRole = !requiredRoles || (user?.role && requiredRoles.includes(user.role));
+  const loading = isPending || (isAuthenticated && !user);
+
+  useEffect(() => {
+    if (!loading && user) {
+      if (!isAuthenticated) {
+        router.replace("/sign-in");
+        return;
+      }
+
+      // Vérifier si l'utilisateur est bloqué
+      if (user.blocked) {
+        // Déconnecter l'utilisateur bloqué
+        import("@/lib/auth-client").then(({ signOut }) => {
+          signOut().then(() => {
+            router.replace("/sign-in?blocked=true");
+          });
+        });
+        return;
+      }
+
+      // Rediriger les utilisateurs PENDING vers la page d'attente
+      if (user.role === "PENDING" && window.location.pathname !== "/pending") {
+        router.replace("/pending");
+        return;
+      }
+      
+      if (requiredRoles && !hasRequiredRole) {
+        router.replace("/dashboard"); // Rediriger vers dashboard si pas les droits
+        return;
+      }
+    }
+  }, [isAuthenticated, hasRequiredRole, loading, user, router, requiredRoles]);
+
+  return {
+    user,
+    isAuthenticated,
+    isPending: loading,
+    hasRequiredRole,
+    session,
+    refreshUserData
+  };
+}
+
+// Hook pour rediriger si déjà authentifié (pour sign-in/sign-up)
+export function useRedirectIfAuthenticated(redirectTo: string = "/dashboard") {
+  const { data: session, isPending } = useSession();
+  const router = useRouter();
+  const [fullUser, setFullUser] = useState<AuthUser | null>(null);
+  const [userLoading, setUserLoading] = useState(false);
+
+  const baseUser = session?.user;
+  const isAuthenticated = !!session && !!baseUser;
+
+  // Récupérer les données complètes de l'utilisateur pour connaître son rôle
   useEffect(() => {
     if (isAuthenticated && baseUser && !fullUser && !userLoading) {
       setUserLoading(true);
@@ -47,12 +141,11 @@ export function useAuth(requiredRoles?: Role[]) {
         })
         .catch(error => {
           console.error('Error fetching user data:', error);
-          // Fallback vers les données de session
           setFullUser({
             id: baseUser.id,
             email: baseUser.email,
             name: baseUser.name,
-            role: undefined,
+            role: "PENDING", // Par défaut en cas d'erreur
             blocked: false
           });
         })
@@ -60,56 +153,18 @@ export function useAuth(requiredRoles?: Role[]) {
     }
   }, [isAuthenticated, baseUser, fullUser, userLoading]);
 
-  const user = fullUser;
-  const hasRequiredRole = !requiredRoles || (user?.role && requiredRoles.includes(user.role));
-  const loading = isPending || (isAuthenticated && !user);
-
   useEffect(() => {
-    if (!loading) {
-      if (!isAuthenticated) {
-        router.replace("/sign-in");
-        return;
-      }
-
-      // Vérifier si l'utilisateur est bloqué
-      if (user?.blocked) {
-        // Déconnecter l'utilisateur bloqué
-        import("@/lib/auth-client").then(({ signOut }) => {
-          signOut().then(() => {
-            router.replace("/sign-in?blocked=true");
-          });
-        });
-        return;
-      }
-      
-      if (requiredRoles && !hasRequiredRole) {
-        router.replace("/dashboard"); // Rediriger vers dashboard si pas les droits
-        return;
+    if (!isPending && !userLoading && session && fullUser) {
+      // Rediriger selon le rôle de l'utilisateur
+      if (fullUser.role === "PENDING") {
+        router.replace("/pending");
+      } else {
+        router.replace(redirectTo);
       }
     }
-  }, [isAuthenticated, hasRequiredRole, loading, router, requiredRoles, user?.blocked]);
+  }, [session, isPending, userLoading, fullUser, router, redirectTo]);
 
-  return {
-    user,
-    isAuthenticated,
-    isPending: loading,
-    hasRequiredRole,
-    session
-  };
-}
-
-// Hook pour rediriger si déjà authentifié (pour sign-in/sign-up)
-export function useRedirectIfAuthenticated(redirectTo: string = "/dashboard") {
-  const { data: session, isPending } = useSession();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isPending && session) {
-      router.replace(redirectTo);
-    }
-  }, [session, isPending, router, redirectTo]);
-
-  return { isPending, isAuthenticated: !!session };
+  return { isPending: isPending || userLoading, isAuthenticated: !!session };
 }
 
 // Vérifier si un utilisateur a un rôle spécifique
@@ -153,6 +208,7 @@ export const PAGE_PERMISSIONS: Record<string, PagePermissions> = {
   "/": { requireAuth: false },
   "/sign-in": { requireAuth: false, redirectIfAuthenticated: true },
   "/sign-up": { requireAuth: false },
+  "/pending": { requireAuth: true, allowedRoles: ["PENDING"] },
   "/register": { requireAuth: false },
   "/dashboard": { requireAuth: true },
   "/profile": { requireAuth: true },
