@@ -29,6 +29,29 @@ fi
 
 echo "✅ Initialisation terminée !"
 
-# Démarrer l'application
+# Fonction de nettoyage pour arrêter tous les processus
+cleanup() {
+  echo "🛑 Arrêt des processus..."
+  jobs -p | xargs -r kill
+  exit 0
+}
+
+# Capturer les signaux pour le nettoyage
+trap cleanup SIGTERM SIGINT
+
+# Démarrer Prisma Studio en arrière-plan
+echo "🔍 Démarrage de Prisma Studio sur le port 5555..."
+npx prisma studio --port 5555 --hostname 0.0.0.0 &
+PRISMA_STUDIO_PID=$!
+
+# Attendre un peu que Prisma Studio démarre
+sleep 3
+echo "✅ Prisma Studio démarré ! Accessible sur http://localhost:5555"
+
+# Démarrer l'application Next.js
 echo "🚀 Démarrage de l'application Next.js..."
-exec npm run dev
+npm run dev &
+NEXTJS_PID=$!
+
+# Attendre que l'un des processus se termine
+wait

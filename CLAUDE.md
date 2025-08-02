@@ -10,7 +10,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `docker compose down -v` - Stop and remove all volumes (reset database)
 - `docker exec attendance-web npx prisma migrate dev --name <migration_name>` - Create and apply new migration
 - `docker exec attendance-web npx prisma generate` - Generate Prisma client
-- `docker exec attendance-web npx prisma studio` - Open Prisma Studio for database inspection
+
+#### Prisma Studio (Auto-démarré en développement)
+- **Automatique** : Prisma Studio se lance automatiquement avec `docker compose up`
+- **URL** : http://localhost:5555 (toujours accessible en développement)
+- **Manuel** : `docker exec attendance-web npx prisma studio` (si besoin de redémarrer)
 
 ### Database Management Commands
 - `docker exec attendance-db psql -U nextjs_app -d nextjs_db -c "SELECT * FROM \"User\";"` - Query database directly
@@ -143,10 +147,11 @@ The system automatically creates on Docker startup (dev only):
 ### Development Workflow
 1. `docker compose up -d --build` - Start with hot reload and auto-seed
 2. Access application at http://localhost:3000
-3. Login with test accounts (see above)
-4. All groups, users, and sample data are automatically created
-5. Use `docker logs attendance-web --tail 20` to monitor application logs
-6. Access database on port 5555 for direct queries if needed
+3. **Prisma Studio automatically available** at http://localhost:5555
+4. Login with test accounts (see above)
+5. All groups, users, and sample data are automatically created
+6. Use `docker logs attendance-web --tail 20` to monitor application logs
+7. Monitor database changes in real-time via Prisma Studio
 
 ### Recent Development Activities & Bug Fixes
 - **Table Sorting System**: Implemented comprehensive sorting across all data tables

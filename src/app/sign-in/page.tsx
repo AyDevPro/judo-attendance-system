@@ -1,7 +1,7 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, FormEvent, useEffect } from "react";
-import { signIn } from "@/lib/auth-client";
+import { signIn, sendVerificationEmail } from "@/lib/auth-client";
 import { withRedirectIfAuth } from "@/components/withAuth";
 
 function SignInPage() {
@@ -10,6 +10,8 @@ function SignInPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [emailForVerification, setEmailForVerification] = useState<string | null>(null);
+  const [verificationSent, setVerificationSent] = useState(false);
   
   useEffect(() => {
     if (searchParams.get('blocked') === 'true') {
@@ -26,15 +28,39 @@ function SignInPage() {
     const res = await signIn.email({
       email: String(fd.get("email") || ""),
       password: String(fd.get("password") || "")
+    }, {
+      onError: (ctx) => {
+        if (ctx.error.status === 403) {
+          setError("Veuillez vérifier votre adresse email avant de vous connecter. Vérifiez votre boîte de réception (et vos spams).");
+          setEmailForVerification(String(fd.get("email") || ""));
+        } else {
+          setError("Identifiants invalides");
+        }
+        setIsLoading(false);
+      }
     });
     
     if (res.error) {
-      setError("Identifiants invalides");
-      setIsLoading(false);
+      // Géré dans onError
       return;
     }
     
     router.push("/dashboard");
+  }
+
+  async function handleResendVerification() {
+    if (!emailForVerification) return;
+    
+    try {
+      await sendVerificationEmail({
+        email: emailForVerification,
+        callbackURL: "/dashboard"
+      });
+      setVerificationSent(true);
+      setError("Email de vérification renvoyé ! Vérifiez votre boîte de réception.");
+    } catch (error) {
+      setError("Erreur lors de l'envoi de l'email de vérification");
+    }
   }
 
   return (
@@ -57,13 +83,29 @@ function SignInPage() {
 
         {/* Error Alert */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className={`border rounded-lg p-4 ${
+            verificationSent ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+          }`}>
             <div className="flex items-center">
-              <svg className="h-5 w-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`h-5 w-5 mr-2 ${
+                verificationSent ? 'text-green-400' : 'text-red-400'
+              }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-sm text-red-800">{error}</p>
+              <p className={`text-sm ${
+                verificationSent ? 'text-green-800' : 'text-red-800'
+              }`}>{error}</p>
             </div>
+            {emailForVerification && !verificationSent && (
+              <div className="mt-3">
+                <button
+                  onClick={handleResendVerification}
+                  className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
+                >
+                  Renvoyer l'email de vérification
+                </button>
+              </div>
+            )}
           </div>
         )}
 
