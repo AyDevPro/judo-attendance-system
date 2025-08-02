@@ -43,19 +43,6 @@ enum Role {
   PENDING
 }
 
-enum GroupType {
-  PRIMA
-  J2
-  J3
-  J4
-  J5_JUDO
-  J5_JUJITSU
-  JUJITSU_JEUNE
-  NE_WAZA
-  TAISO
-  SELF_DEFENSE
-  YOGA
-}
 
 model Teacher {
   id      Int    @id @default(autoincrement())
@@ -69,10 +56,9 @@ model Teacher {
 model Group {
   id           Int                @id @default(autoincrement())
   name         String             @unique
-  type         GroupType
   description  String?
   createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  updatedAt    DateTime           @default(now()) @updatedAt
   
   // Relations
   licensees    LicenseeGroup[]

@@ -10,17 +10,17 @@ async function main() {
   console.log('📚 Création des groupes judo...');
   
   const groups = [
-    { name: 'PRIMA', type: 'PRIMA', description: 'Groupe des débutants (6-7 ans)' },
-    { name: 'J2', type: 'J2', description: 'Judo 2 (8-9 ans)' },
-    { name: 'J3', type: 'J3', description: 'Judo 3 (10-11 ans)' },
-    { name: 'J4', type: 'J4', description: 'Judo 4 (12-13 ans)' },
-    { name: 'J5 Judo', type: 'J5_JUDO', description: 'Judo 5 - Judo (14+ ans)' },
-    { name: 'J5 Jujitsu', type: 'J5_JUJITSU', description: 'Judo 5 - Jujitsu (14+ ans)' },
-    { name: 'Jujitsu Jeune', type: 'JUJITSU_JEUNE', description: 'Jujitsu pour les jeunes' },
-    { name: 'Ne-Waza', type: 'NE_WAZA', description: 'Techniques au sol' },
-    { name: 'Taiso', type: 'TAISO', description: 'Préparation physique judo' },
-    { name: 'Self-Défense', type: 'SELF_DEFENSE', description: 'Cours de self-défense' },
-    { name: 'Yoga', type: 'YOGA', description: 'Cours de yoga' }
+    { name: 'PRIMA', description: 'Groupe des débutants (6-7 ans)' },
+    { name: 'J2', description: 'Judo 2 (8-9 ans)' },
+    { name: 'J3', description: 'Judo 3 (10-11 ans)' },
+    { name: 'J4', description: 'Judo 4 (12-13 ans)' },
+    { name: 'J5 Judo', description: 'Judo 5 - Judo (14+ ans)' },
+    { name: 'J5 Jujitsu', description: 'Judo 5 - Jujitsu (14+ ans)' },
+    { name: 'Jujitsu Jeune', description: 'Jujitsu pour les jeunes' },
+    { name: 'Ne-Waza', description: 'Techniques au sol' },
+    { name: 'Taiso', description: 'Préparation physique judo' },
+    { name: 'Self-Défense', description: 'Cours de self-défense' },
+    { name: 'Yoga', description: 'Cours de yoga' }
   ];
 
   for (const group of groups) {
@@ -95,11 +95,42 @@ async function main() {
 
       console.log(`  ✅ Utilisateur "${userData.email}" créé avec le rôle ${userData.role}`);
     } else {
-      // Mettre à jour le rôle si nécessaire
+      // Mettre à jour le rôle et le mot de passe
+      const hashedPassword = await bcrypt.hash(userData.password, 10);
+      
       await prisma.user.update({
         where: { email: userData.email },
-        data: { role: userData.role }
+        data: { 
+          role: userData.role,
+          emailVerified: true
+        }
       });
+
+      // Mettre à jour ou créer le mot de passe
+      await prisma.password.upsert({
+        where: { userId: existingUser.id },
+        update: { hash: hashedPassword },
+        create: {
+          userId: existingUser.id,
+          hash: hashedPassword
+        }
+      });
+
+      // Si c'est un professeur, créer le profil Teacher s'il n'existe pas
+      if (userData.role === 'TEACHER') {
+        const existingTeacher = await prisma.teacher.findUnique({
+          where: { userId: existingUser.id }
+        });
+        
+        if (!existingTeacher) {
+          await prisma.teacher.create({
+            data: {
+              userId: existingUser.id
+            }
+          });
+        }
+      }
+
       console.log(`  ✅ Utilisateur "${userData.email}" mis à jour avec le rôle ${userData.role}`);
     }
   }
